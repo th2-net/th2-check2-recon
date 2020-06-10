@@ -1,10 +1,8 @@
 import collections
 import logging
 import queue
-from datetime import datetime
 
 import comparator
-import store
 from th2 import infra_pb2
 
 logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
@@ -101,10 +99,7 @@ def recon(queue_listeners: dict, cache_size: int, time_interval, report_id, mess
             if cache.probable_min_time != -1:
                 cache.filter_cache_by_time(queue_listeners, report_id)
             continue
-        if not message_comparator.thread_comparing.is_alive():
-            message_comparator.start()
         indices = Recon.calc(cache.data, message_comparator)
-        message_comparator.stop()
         log_result(indices, cache.data, queue_listeners, report_id)
         if len(indices) != 0:
             cache.filter_cache_by_indices(indices)
