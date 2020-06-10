@@ -1,0 +1,28 @@
+syntax = "proto3";
+package th2;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+import "th2/infra.proto";
+
+option java_multiple_files = true;
+option java_package = "com.exactpro.th2.eventstore.grpc";
+
+message StoreEventRequest {
+    Event event = 1;
+}
+
+message StoreEventBatchRequest {
+    EventBatch event_batch = 1;
+}
+
+message Response {
+    google.protobuf.StringValue error = 1;
+    google.protobuf.StringValue id = 2;
+}
+
+service EventStoreService {
+    rpc StoreEvent (StoreEventRequest) returns (Response);
+    rpc StoreEventBatch (StoreEventBatchRequest) returns (Response);
+}
