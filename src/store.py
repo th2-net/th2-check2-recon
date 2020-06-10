@@ -6,7 +6,10 @@ from json import JSONEncoder
 import grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 
-from th2 import event_store_pb2_grpc, event_store_pb2, message_comparator_pb2, infra_pb2
+from th2 import message_comparator_pb2
+from th2 import event_store_pb2
+from th2 import infra_pb2
+from th2 import event_store_pb2_grpc
 
 
 class Store:
