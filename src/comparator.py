@@ -15,17 +15,18 @@ logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=loggin
 
 class Comparator:
 
-    def __init__(self, parent_id, comparator_uri: str, event_store: store.Store) -> None:
+    def __init__(self, comparator_uri: str, event_store: store.Store) -> None:
         self.COMPARING_IS_ON = False
         self.tasks = queue.Queue()
         self.comparator_uri = comparator_uri
-        self.parent_id = parent_id
+        self.parent_id = event_store.report_id
         self.thread_comparing = Thread(target=self.__comparing, args=())
         self.event_store = event_store
 
     @staticmethod
     def match(expected: infra_pb2.Message, actual: infra_pb2.Message):
-        return expected.metadata.message_type == actual.metadata.message_type
+        return expected.metadata.message_type == actual.metadata.message_type and \
+               expected.fields['TrdMatchID'].simple_value == actual.fields['TrdMatchID'].simple_value
 
     def check(self, expected: infra_pb2.Message, actual: infra_pb2.Message):
         self.tasks.put([expected, actual])
@@ -63,3 +64,30 @@ class Comparator:
         self.COMPARING_IS_ON = False
         self.thread_comparing.join()
         logging.info("Comparator is stopped")
+
+
+def get_result_count(comparison_result, status) -> int:
+    count = 0
+    if status == comparison_result.status:
+        count += 1
+
+    for sub_result in comparison_result.fields.values():
+        count += get_result_count(sub_result, status)
+
+    return count
+
+
+def get_status_type_by_val(failed, passed) -> message_comparator_pb2.ComparisonEntryStatus:
+    if failed != 0:
+        return message_comparator_pb2.ComparisonEntryStatus.FAILED
+    else:
+        if passed != 0:
+            return message_comparator_pb2.ComparisonEntryStatus.PASSED
+    return message_comparator_pb2.ComparisonEntryStatus.NA
+
+
+def get_status_type(
+        comparison_result: message_comparator_pb2.ComparisonEntry) -> message_comparator_pb2.ComparisonEntryStatus:
+    failed = get_result_count(comparison_result, message_comparator_pb2.ComparisonEntryStatus.FAILED)
+    passed = get_result_count(comparison_result, message_comparator_pb2.ComparisonEntryStatus.PASSED)
+    return get_status_type_by_val(failed, passed)
