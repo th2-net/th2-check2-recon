@@ -6,16 +6,18 @@ from json import JSONEncoder
 import grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 
-from th2 import message_comparator_pb2
+import comparator
 from th2 import event_store_pb2
-from th2 import infra_pb2
 from th2 import event_store_pb2_grpc
+from th2 import infra_pb2
+from th2 import message_comparator_pb2
 
 
 class Store:
 
     def __init__(self, event_store_uri) -> None:
         self.event_store_uri = event_store_uri
+        self.report_id = self.new_event_id()
 
     @staticmethod
     def new_event_id():
@@ -37,11 +39,14 @@ class Store:
         event = infra_pb2.Event()
         event.id.CopyFrom(self.new_event_id())
         event.parent_id.CopyFrom(parent_id)
+        event.name = "Check"
         start_time = datetime.now()
         seconds = int(start_time.timestamp())
         nanos = int(start_time.microsecond * 1000)
         event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
-        event.status = infra_pb2.EventStatus.SUCCESS  # TODO fix
+        event.status = infra_pb2.EventStatus.FAILED if comparator.get_status_type(
+            compare_result.comparison_result) == message_comparator_pb2.ComparisonEntryStatus.FAILED \
+            else infra_pb2.EventStatus.SUCCESS
         event.attached_message_ids.append(compare_result.first_message_id)
         event.attached_message_ids.append(compare_result.second_message_id)
         body = str(VerificationEncoder().encode(verification_component.build()))
@@ -57,6 +62,9 @@ class Store:
         nanos = int(start_time.microsecond * 1000)
         event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
         self.send_event(event)
+
+    def store_out_of_interval(self, message: infra_pb2.Message, lower_bound, upper_bound):
+        pass
 
 
 class Verification:
@@ -89,24 +97,47 @@ class VerificationEntry:
     def __init__(self) -> None:
         self.type = None
         self.status = None
-        self.first = None
-        self.second = None
+        self.expected = None
+        self.actual = None
         self.operation = None
         self.key = None
         self.fields = dict()
+
+
+def to_verification_status(status: message_comparator_pb2.ComparisonEntryStatus) -> str:
+    if status == message_comparator_pb2.ComparisonEntryStatus.NA:
+        return 'NA'
+    else:
+        if status == message_comparator_pb2.ComparisonEntryStatus.FAILED:
+            return 'FAILED'
+    return 'PASSED'
+
+
+def to_verification_filter_operation(operation) -> str:
+    if operation == infra_pb2.FilterOperation.EQUAL:
+        return 'EQUAL'
+    if operation == infra_pb2.FilterOperation.NOT_EQUAL:
+        return 'NOT_EQUAL'
+    if operation == infra_pb2.FilterOperation.EMPTY:
+        return 'EMPTY'
+    if operation == infra_pb2.FilterOperation.NOT_EMPTY:
+        return 'NOT_EMPTY'
 
 
 class VerificationEntryUtils(object):
     @classmethod
     def create_verification_entry(cls, comparison_result) -> VerificationEntry:
         verification_entry = VerificationEntry()
-        verification_entry.first = comparison_result.first
-        verification_entry.second = comparison_result.second
-        verification_entry.status = comparison_result.status
+        verification_entry.expected = comparison_result.first
+        verification_entry.actual = comparison_result.second
+        verification_entry.status = to_verification_status(comparison_result.status)
         verification_entry.key = comparison_result.is_key
-        verification_entry.operation = comparison_result.operation
+        verification_entry.operation = to_verification_filter_operation(comparison_result.operation)
         if comparison_result.type == message_comparator_pb2.ComparisonEntryType.COLLECTION:
             verification_entry.type = "collection"
+            for field_name in comparison_result.fields.keys():
+                verification_entry.fields[field_name] = cls.create_verification_entry(
+                    comparison_result.fields[field_name])
         else:
             verification_entry.type = "field"
 

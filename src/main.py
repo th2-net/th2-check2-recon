@@ -71,14 +71,13 @@ def shutdown_hook():
 atexit.register(shutdown_hook)
 
 event_store = store.Store(EVENT_STORAGE_URI)
-report_id = event_store.new_event_id()
-event_store.send_report(report_id, 'Recon_' + str(datetime.now()))
+event_store.send_report(event_store.report_id, 'Recon_' + str(datetime.now()))
 
-message_comparator = comparator.Comparator(report_id, COMPARATOR_URI, event_store)
+message_comparator = comparator.Comparator(COMPARATOR_URI, event_store)
 message_comparator.start()
 
 thread_recon = Thread(target=recon.recon,
-                      args=(queue_listeners, CACHE_SIZE, TIME_INTERVAL, report_id, message_comparator))
+                      args=(queue_listeners, CACHE_SIZE, TIME_INTERVAL, event_store, message_comparator))
 thread_recon.start()
 
 try:

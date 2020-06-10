@@ -3,6 +3,7 @@ import logging
 import queue
 
 import comparator
+import store
 from th2 import infra_pb2
 
 logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
@@ -68,7 +69,7 @@ def log_table_messages(messages, col_size):
     return result
 
 
-def log_result(indices, cache, queue_listeners, parent_id):
+def log_result(indices, cache, queue_listeners):
     col_size = 30
     result = ""
     for elem_idx in range(len(indices)):
@@ -91,20 +92,20 @@ def log_result(indices, cache, queue_listeners, parent_id):
     logging.info(result)
 
 
-def recon(queue_listeners: dict, cache_size: int, time_interval, report_id, message_comparator):
+def recon(queue_listeners: dict, cache_size: int, time_interval, event_store, message_comparator):
     logging.info("Recon is started")
     cache = Cache(len(queue_listeners.values()), cache_size, time_interval)
     while True:
         if not cache.fill_cache(queue_listeners):
             if cache.probable_min_time != -1:
-                cache.filter_cache_by_time(queue_listeners, report_id)
+                cache.filter_cache_by_time(queue_listeners, event_store)
             continue
         indices = Recon.calc(cache.data, message_comparator)
-        log_result(indices, cache.data, queue_listeners, report_id)
+        log_result(indices, cache.data, queue_listeners)
         if len(indices) != 0:
             cache.filter_cache_by_indices(indices)
         else:
-            cache.filter_cache_by_time(queue_listeners, report_id)
+            cache.filter_cache_by_time(queue_listeners, event_store)
 
 
 class Cache:
@@ -119,9 +120,11 @@ class Cache:
     def fill_sub_cache(self, queue_listener: QueueListener):
         for x in range(self.max_size):
             try:
+                logging.debug("%r: Wait msg" % queue_listener.routing_key)
                 head = queue_listener.peek_element()
                 head_time = head.metadata.timestamp.seconds
                 if len(self.data[queue_listener.index]) >= self.max_size:
+                    logging.debug("%r: Out of size" % queue_listener.routing_key)
                     self.update_probable_min_time(head_time)
                     return
 
@@ -132,6 +135,7 @@ class Cache:
                     self.data[queue_listener.index].append(head)
                     queue_listener.remove_head()
                 else:
+                    logging.debug("%r: Out of time interval. Head time %r" % (queue_listener.routing_key, head_time))
                     self.update_probable_min_time(head_time)
                     break
 
@@ -149,7 +153,7 @@ class Cache:
                 is_ok = False
         return is_ok
 
-    def filter_cache_by_time(self, queue_listeners: dict, parent_id):
+    def filter_cache_by_time(self, queue_listeners: dict, event_store: store.Store):
         self.min_time = self.probable_min_time
         max_time_of_del = -1
         for seq_idx in range(len(self.data)):
@@ -163,6 +167,8 @@ class Cache:
                     "%r: Out of time interval %r" % (routing_key, self.data[seq_idx][-1].metadata.message_type))
                 if self.data[seq_idx][-1].metadata.timestamp.seconds > max_time_of_del:
                     max_time_of_del = self.data[seq_idx][-1].metadata.timestamp.seconds
+                event_store.store_out_of_interval(self.data[seq_idx][-1], self.min_time,
+                                                  self.min_time + self.time_interval)
                 del self.data[seq_idx][-1]
         self.update_min_time(max_time_of_del)
 
@@ -181,19 +187,21 @@ class Cache:
         for i in range(len(self.data)):
             if len(self.data[i]) > 0:
                 self.min_time = self.data[i][0].metadata.timestamp.seconds
+        logging.debug(
+            "update min_time=%r probable=%r max_time_del=%r" % (self.min_time, self.probable_min_time, max_time_of_del))
+        if self.min_time > self.probable_min_time != -1:
+            self.min_time = self.probable_min_time
         if self.min_time > max_time_of_del != -1:
             self.min_time = max_time_of_del
         for seq_idx in range(len(self.data)):
             for elem_idx in range(len(self.data[seq_idx])):
                 if self.min_time == -1 or self.data[seq_idx][elem_idx].metadata.timestamp.seconds < self.min_time:
                     self.min_time = self.data[seq_idx][elem_idx].metadata.timestamp.seconds
+        logging.debug("update on %r" % self.min_time)
 
     def update_probable_min_time(self, head_time):
-        if self.probable_min_time == -1:
-            self.probable_min_time = head_time - self.time_interval
-        else:
-            if head_time - self.time_interval < self.probable_min_time:
-                self.probable_min_time = head_time - self.time_interval
+        self.probable_min_time = head_time - self.time_interval
+        logging.debug("Update probable min time on %r" % self.probable_min_time)
 
 
 class Recon:
