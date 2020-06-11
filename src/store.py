@@ -63,11 +63,11 @@ class Store:
         event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
         self.send_event(event)
 
-    def store_out_of_interval(self, message: infra_pb2.Message, lower_bound, upper_bound):
+    def store_out_of_interval(self, message: infra_pb2.Message, lower_bound, upper_bound, routing_key):
         event = infra_pb2.Event()
         event.id.CopyFrom(self.new_event_id())
         event.parent_id.CopyFrom(self.report_id)
-        event.name = "Removed from cache. Interval %r to %r" % (lower_bound, upper_bound)
+        event.name = "Removed from cache '%r'. Interval %r to %r" % (routing_key, lower_bound, upper_bound)
         start_time = datetime.now()
         seconds = int(start_time.timestamp())
         nanos = int(start_time.microsecond * 1000)

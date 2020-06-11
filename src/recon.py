@@ -171,7 +171,7 @@ class Cache:
                 if self.data[seq_idx][0].metadata.timestamp.seconds > max_time_of_del:
                     max_time_of_del = self.data[seq_idx][0].metadata.timestamp.seconds
                 event_store.store_out_of_interval(self.data[seq_idx][0], self.min_time,
-                                                  self.min_time + self.time_interval)
+                                                  self.min_time + self.time_interval, routing_key)
                 del self.data[seq_idx][0]
         self.update_min_time(max_time_of_del)
 
