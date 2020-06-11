@@ -101,8 +101,8 @@ def recon(queue_listeners: dict, cache_size: int, time_interval, event_store, me
                 cache.filter_cache_by_time(queue_listeners, event_store)
             continue
         indices = Recon.calc(cache.data, message_comparator)
-        log_result(indices, cache.data, queue_listeners)
         if len(indices) != 0:
+            log_result(indices, cache.data, queue_listeners)
             cache.filter_cache_by_indices(indices)
         else:
             cache.filter_cache_by_time(queue_listeners, event_store)
@@ -120,11 +120,11 @@ class Cache:
     def fill_sub_cache(self, queue_listener: QueueListener):
         for x in range(self.max_size):
             try:
-                logging.debug("%r: Wait msg" % queue_listener.routing_key)
+                logging.info("%r: Wait msg" % queue_listener.routing_key)
                 head = queue_listener.peek_element()
                 head_time = head.metadata.timestamp.seconds
                 if len(self.data[queue_listener.index]) >= self.max_size:
-                    logging.debug("%r: Out of size" % queue_listener.routing_key)
+                    logging.info("%r: Out of size" % queue_listener.routing_key)
                     self.update_probable_min_time(head_time)
                     return
 
@@ -135,7 +135,7 @@ class Cache:
                     self.data[queue_listener.index].append(head)
                     queue_listener.remove_head()
                 else:
-                    logging.debug("%r: Out of time interval. Head time %r" % (queue_listener.routing_key, head_time))
+                    logging.info("%r: Out of time interval. Head time %r" % (queue_listener.routing_key, head_time))
                     self.update_probable_min_time(head_time)
                     break
 
@@ -154,10 +154,11 @@ class Cache:
         return is_ok
 
     def filter_cache_by_time(self, queue_listeners: dict, event_store: store.Store):
-        self.min_time = self.probable_min_time
+        if self.probable_min_time != -1:
+            self.min_time = self.probable_min_time
         max_time_of_del = -1
         for seq_idx in range(len(self.data)):
-            while len(self.data[seq_idx]) > 0 and self.data[seq_idx][-1].metadata.timestamp.seconds > self.min_time:
+            while len(self.data[seq_idx]) > 0 and self.data[seq_idx][-1].metadata.timestamp.seconds < self.min_time:
                 routing_key = ""
                 for queue_listener in queue_listeners.values():
                     if queue_listener.index == seq_idx:
@@ -189,15 +190,17 @@ class Cache:
                 self.min_time = self.data[i][0].metadata.timestamp.seconds
         if self.min_time > max_time_of_del != -1:
             self.min_time = max_time_of_del
+        logging.info(
+            "update min_time=%r probable=%r max_del=%r" % (self.min_time, self.probable_min_time, max_time_of_del))
         for seq_idx in range(len(self.data)):
             for elem_idx in range(len(self.data[seq_idx])):
                 if self.min_time == -1 or self.data[seq_idx][elem_idx].metadata.timestamp.seconds < self.min_time:
                     self.min_time = self.data[seq_idx][elem_idx].metadata.timestamp.seconds
-        logging.debug("update on %r" % self.min_time)
+        logging.info("update on %r" % self.min_time)
 
     def update_probable_min_time(self, head_time):
         self.probable_min_time = head_time - self.time_interval
-        logging.debug("Update probable min time on %r" % self.probable_min_time)
+        logging.info("Update probable min time on %r" % self.probable_min_time)
 
 
 class Recon:
