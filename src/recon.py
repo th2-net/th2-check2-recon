@@ -187,10 +187,6 @@ class Cache:
         for i in range(len(self.data)):
             if len(self.data[i]) > 0:
                 self.min_time = self.data[i][0].metadata.timestamp.seconds
-        logging.debug(
-            "update min_time=%r probable=%r max_time_del=%r" % (self.min_time, self.probable_min_time, max_time_of_del))
-        if self.min_time > self.probable_min_time != -1:
-            self.min_time = self.probable_min_time
         if self.min_time > max_time_of_del != -1:
             self.min_time = max_time_of_del
         for seq_idx in range(len(self.data)):
