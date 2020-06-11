@@ -157,20 +157,22 @@ class Cache:
         if self.probable_min_time != -1:
             self.min_time = self.probable_min_time
         max_time_of_del = -1
+        logging.info("filter by time. prob_time=%r min_time=%r" %(self.probable_min_time, self.min_time))
         for seq_idx in range(len(self.data)):
-            while len(self.data[seq_idx]) > 0 and self.data[seq_idx][-1].metadata.timestamp.seconds < self.min_time:
+            logging.info("filter. last=%r" % [str(self.data[seq_idx][i].metadata.timestamp.seconds) + " " for i in range(len(self.data[seq_idx]))])
+            while len(self.data[seq_idx]) > 0 and self.data[seq_idx][0].metadata.timestamp.seconds < self.min_time:
                 routing_key = ""
                 for queue_listener in queue_listeners.values():
                     if queue_listener.index == seq_idx:
                         routing_key = queue_listener.routing_key
                         break
                 logging.info(
-                    "%r: Out of time interval %r" % (routing_key, self.data[seq_idx][-1].metadata.message_type))
-                if self.data[seq_idx][-1].metadata.timestamp.seconds > max_time_of_del:
-                    max_time_of_del = self.data[seq_idx][-1].metadata.timestamp.seconds
-                event_store.store_out_of_interval(self.data[seq_idx][-1], self.min_time,
+                    "%r: Out of time interval %r" % (routing_key, self.data[seq_idx][0].metadata.message_type))
+                if self.data[seq_idx][0].metadata.timestamp.seconds > max_time_of_del:
+                    max_time_of_del = self.data[seq_idx][0].metadata.timestamp.seconds
+                event_store.store_out_of_interval(self.data[seq_idx][0], self.min_time,
                                                   self.min_time + self.time_interval)
-                del self.data[seq_idx][-1]
+                del self.data[seq_idx][0]
         self.update_min_time(max_time_of_del)
 
     def filter_cache_by_indices(self, indices: list):
@@ -185,13 +187,15 @@ class Cache:
         self.update_min_time(max_time_of_del)
 
     def update_min_time(self, max_time_of_del):
+        logging.info(
+            "update before min_time=%r probable=%r max_del=%r" % (self.min_time, self.probable_min_time, max_time_of_del))
         for i in range(len(self.data)):
             if len(self.data[i]) > 0:
                 self.min_time = self.data[i][0].metadata.timestamp.seconds
         if self.min_time > max_time_of_del != -1:
             self.min_time = max_time_of_del
         logging.info(
-            "update min_time=%r probable=%r max_del=%r" % (self.min_time, self.probable_min_time, max_time_of_del))
+            "update after min_time=%r probable=%r max_del=%r" % (self.min_time, self.probable_min_time, max_time_of_del))
         for seq_idx in range(len(self.data)):
             for elem_idx in range(len(self.data[seq_idx])):
                 if self.min_time == -1 or self.data[seq_idx][elem_idx].metadata.timestamp.seconds < self.min_time:
