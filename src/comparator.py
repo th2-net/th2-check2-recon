@@ -29,8 +29,13 @@ class Comparator:
                expected.fields['TrdMatchID'].simple_value != '' and actual.fields['TrdMatchID'].simple_value != '' and \
                expected.fields['TrdMatchID'].simple_value == actual.fields['TrdMatchID'].simple_value
 
+    def get_ignore_fields(self) -> list:
+        return ['TargetCompID', 'SendingTime', 'BodyLength', 'CheckSum', 'MsgSeqNum']
+
     def check(self, expected: infra_pb2.Message, actual: infra_pb2.Message):
-        self.tasks.put([expected, actual])
+        settings = message_comparator_pb2.ComparisonSettings()
+        settings.ignore_fields.extend(self.get_ignore_fields())
+        self.tasks.put([expected, actual, settings])
 
     def __comparing(self):
         with ThreadPoolExecutor(20) as executor:
@@ -38,18 +43,20 @@ class Comparator:
             while not self.tasks.empty() or self.COMPARING_IS_ON:
                 try:
                     task = self.tasks.get(block=True, timeout=5)
-                    executor.submit(self.compare, task[0], task[1])
+                    executor.submit(self.compare, task[0], task[1], task[2])
                 except queue.Empty:
                     pass
 
-    def compare(self, expected: infra_pb2.Message, actual: infra_pb2.Message):
+    def compare(self, expected: infra_pb2.Message, actual: infra_pb2.Message,
+                settings: message_comparator_pb2.ComparisonSettings):
         with grpc.insecure_channel(self.comparator_uri) as channel:
             logging.debug("Compare %r and %r" % (expected.metadata.message_type, expected.metadata.message_type))
             try:
                 grpc_stub = message_comparator_pb2_grpc.MessageComparatorServiceStub(channel)
                 request = message_comparator_pb2.CompareMessageVsMessageRequest()
                 request.comparison_tasks.append(
-                    message_comparator_pb2.CompareMessageVsMessageTask(first=expected, second=actual))
+                    message_comparator_pb2.CompareMessageVsMessageTask(first=expected, second=actual,
+                                                                       settings=settings))
                 compare_response = grpc_stub.compareMessageVsMessage(request)
                 for compare_result in compare_response.comparison_results:
                     self.event_store.store_verification_event(self.parent_id, compare_result)
