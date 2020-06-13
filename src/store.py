@@ -6,7 +6,7 @@ from json import JSONEncoder
 import grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 
-import comparator
+# import comparator
 from th2 import event_store_pb2
 from th2 import event_store_pb2_grpc
 from th2 import infra_pb2
@@ -17,7 +17,6 @@ class Store:
 
     def __init__(self, event_store_uri) -> None:
         self.event_store_uri = event_store_uri
-        self.report_id = self.new_event_id()
 
     @staticmethod
     def new_event_id():
@@ -44,9 +43,9 @@ class Store:
         seconds = int(start_time.timestamp())
         nanos = int(start_time.microsecond * 1000)
         event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
-        event.status = infra_pb2.EventStatus.FAILED if comparator.get_status_type(
-            compare_result.comparison_result) == message_comparator_pb2.ComparisonEntryStatus.FAILED \
-            else infra_pb2.EventStatus.SUCCESS
+        # event.status = infra_pb2.EventStatus.FAILED if comparator.get_status_type(
+        #     compare_result.comparison_result) == message_comparator_pb2.ComparisonEntryStatus.FAILED \
+        #     else infra_pb2.EventStatus.SUCCESS
         event.attached_message_ids.append(compare_result.first_message_id)
         event.attached_message_ids.append(compare_result.second_message_id)
         body = str(VerificationEncoder().encode(verification_component.build()))
@@ -74,6 +73,21 @@ class Store:
         event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
         event.attached_message_ids.append(message.metadata.id)
         self.send_event(event)
+
+    def store_no_match_within_timeout(self, message: infra_pb2.Message, event_message: str):
+        pass
+
+    def store_no_match(self, message: infra_pb2.Message, event_message: str):
+        pass
+
+    def store_error(self, routing_key: str, hash_of_message: str, message: infra_pb2.Message, event_message: str):
+        pass
+
+    def store_matched_out_of_timeout(self, check_event: infra_pb2.Event, min_time, max_time):
+        pass
+
+    def store_matched(self, check_event: infra_pb2.Event):
+        pass
 
 
 class Verification:
