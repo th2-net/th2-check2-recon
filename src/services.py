@@ -84,13 +84,15 @@ def log_result(indices, cache, queue_listeners):
 
 class Cache:
 
-    def __init__(self, cache_size: int, time_interval: int, routing_keys: list, event_store: store.Store) -> None:
+    def __init__(self, cache_size: int, time_interval: int, routing_keys: list, event_store: store.Store,
+                 rule_event_id: infra_pb2.EventID) -> None:
         self.cache_size = cache_size
         self.time_interval = time_interval * 1_000_000_000
         self.min_time = 0
         self.event_store = event_store
+        self.rule_event_id = rule_event_id
         self.data = {key: dict() for key in routing_keys}
-        self.min_by_key = {key: {} for key in routing_keys}  # TODO fix
+        self.min_by_key = {key: set() for key in routing_keys}  # TODO fix
         self.hash_by_timestamp = {key: {} for key in routing_keys}  # TODO fix
 
     def contains(self, hash_of_message: str, routing_key: str) -> bool:
@@ -129,19 +131,21 @@ class Cache:
         timestamp = self.get_timestamp(message)
         if event_message != "":
             if self.min_time <= timestamp <= self.min_time + self.time_interval:
-                self.event_store.store_no_match_within_timeout(message, event_message)
+                self.event_store.store_no_match_within_timeout(self.rule_event_id, message, event_message)
             else:
-                self.event_store.store_no_match(message, event_message)
+                self.event_store.store_no_match(self.rule_event_id, message, event_message)
 
-        self.hash_by_timestamp[routing_key].remove(timestamp)
-        self.min_by_key[routing_key].pop(timestamp)
-        self.data[routing_key].remove(hash_of_message)
+        self.hash_by_timestamp[routing_key].pop(timestamp)
+        self.min_by_key[routing_key].remove(timestamp)
+        self.data[routing_key].pop(hash_of_message)
 
     def clear(self):
         event_message = "The message was deleted because the Recon stopped."
         for routing_key in self.data.keys():
-            for hash_of_message in self.data[routing_key].keys():
-                self.remove(routing_key, hash_of_message, event_message)
+            while len(self.data[routing_key]) > 0:  # TODO fix it
+                for hash_of_message in self.data[routing_key].keys():
+                    self.remove(routing_key, hash_of_message, event_message)
+                    break
 
 
 class Recon:

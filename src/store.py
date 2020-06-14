@@ -6,88 +6,162 @@ from json import JSONEncoder
 import grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 
-# import comparator
+import comparator
 from th2 import event_store_pb2
 from th2 import event_store_pb2_grpc
 from th2 import infra_pb2
 from th2 import message_comparator_pb2
 
+logger = logging.getLogger()
+
+MATCHED_FAILED = "Matched failed"
+MATCHED_PASSED = "Matched passed"
+MATCHED_OUT_OF_TIMEOUT = "Matched out of timeout"
+NO_MATCH_WITHIN_TIMEOUT = "No match within timeout"
+NO_MATCH = "No match"
+ERRORS = "Errors"
+
+
+def new_event_id():
+    return infra_pb2.EventID(id=str(uuid.uuid1()))
+
 
 class Store:
 
-    def __init__(self, event_store_uri) -> None:
+    def __init__(self, event_store_uri, report_name: str) -> None:
         self.event_store_uri = event_store_uri
-
-    @staticmethod
-    def new_event_id():
-        return infra_pb2.EventID(id=str(uuid.uuid1()))
+        self.report_id = new_event_id()
+        self.send_event_group(self.report_id, None, 'Recon_' + report_name)
+        self.event_group_by_rule_id = dict()
+        self.event_group_names = [MATCHED_FAILED, MATCHED_PASSED, MATCHED_OUT_OF_TIMEOUT, NO_MATCH_WITHIN_TIMEOUT,
+                                  NO_MATCH, ERRORS]
 
     def send_event(self, event: infra_pb2.Event):
         with grpc.insecure_channel(self.event_store_uri) as channel:
-            store_stub = event_store_pb2_grpc.EventStoreServiceStub(channel)
-            event_response = store_stub.StoreEvent(event_store_pb2.StoreEventRequest(event=event))
-            logging.info("Event id: %r" % event_response)
+            try:
+                store_stub = event_store_pb2_grpc.EventStoreServiceStub(channel)
+                event_response = store_stub.StoreEvent(event_store_pb2.StoreEventRequest(event=event))
+                logger.debug("Event id: %r" % event_response)
+            except Exception:
+                logger.exception("Error while send event")
 
-    def store_verification_event(self, parent_id: infra_pb2.EventID,
-                                 compare_result: message_comparator_pb2.CompareMessageVsMessageResult):
-        verification_component = VerificationBuilder()
-        if len(compare_result.comparison_result.fields.keys()) > 0:
-            for field_name in compare_result.comparison_result.fields.keys():
-                verification_component.verification(field_name, compare_result.comparison_result.fields[field_name])
-
-        event = infra_pb2.Event()
-        event.id.CopyFrom(self.new_event_id())
-        event.parent_id.CopyFrom(parent_id)
-        event.name = "Check"
+    def send_event_group(self, event_id: infra_pb2.EventID, parent_id: infra_pb2.EventID, name: str):
         start_time = datetime.now()
         seconds = int(start_time.timestamp())
         nanos = int(start_time.microsecond * 1000)
-        event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
-        # event.status = infra_pb2.EventStatus.FAILED if comparator.get_status_type(
-        #     compare_result.comparison_result) == message_comparator_pb2.ComparisonEntryStatus.FAILED \
-        #     else infra_pb2.EventStatus.SUCCESS
-        event.attached_message_ids.append(compare_result.first_message_id)
-        event.attached_message_ids.append(compare_result.second_message_id)
-        body = str(VerificationEncoder().encode(verification_component.build()))
-        event.body = body.encode()
+        event = infra_pb2.Event(id=event_id,
+                                name=name,
+                                start_timestamp=Timestamp(seconds=seconds, nanos=nanos))
+        if parent_id is not None:
+            event.parent_id.CopyFrom(parent_id)
         self.send_event(event)
 
-    def send_report(self, report_id, name: str):
+    def store_no_match_within_timeout(self, rule_event_id: infra_pb2.EventID, message: infra_pb2.Message,
+                                      event_message: str):
         event = infra_pb2.Event()
-        event.id.CopyFrom(report_id)
-        event.name = name
-        start_time = datetime.now()
-        seconds = int(start_time.timestamp())
-        nanos = int(start_time.microsecond * 1000)
-        event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
-        self.send_event(event)
-
-    def store_out_of_interval(self, message: infra_pb2.Message, lower_bound, upper_bound, routing_key):
-        event = infra_pb2.Event()
-        event.id.CopyFrom(self.new_event_id())
-        event.parent_id.CopyFrom(self.report_id)
-        event.name = "Removed from cache '%r'. Interval %r to %r" % (routing_key, lower_bound, upper_bound)
+        event.id.CopyFrom(new_event_id())
+        event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][NO_MATCH_WITHIN_TIMEOUT])
+        event.name = "Removed from cache. (Change it)"  # TODO change it
         start_time = datetime.now()
         seconds = int(start_time.timestamp())
         nanos = int(start_time.microsecond * 1000)
         event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
         event.attached_message_ids.append(message.metadata.id)
+        message_bytes = ComponentEncoder().encode(MessageComponent(event_message)).encode()
+        event.body = message_bytes + event.body  # Encode to bytes
         self.send_event(event)
 
-    def store_no_match_within_timeout(self, message: infra_pb2.Message, event_message: str):
-        pass
+    def store_no_match(self, rule_event_id: infra_pb2.EventID, message: infra_pb2.Message, event_message: str):
+        event = infra_pb2.Event()
+        event.id.CopyFrom(new_event_id())
+        event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][NO_MATCH])
+        event.name = "Removed from cache. (Change it)"  # TODO change it
+        start_time = datetime.now()
+        seconds = int(start_time.timestamp())
+        nanos = int(start_time.microsecond * 1000)
+        event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
+        event.attached_message_ids.append(message.metadata.id)
+        message_bytes = ComponentEncoder().encode(MessageComponent(event_message)).encode()
+        event.body = message_bytes + event.body  # Encode to bytes
+        self.send_event(event)
 
-    def store_no_match(self, message: infra_pb2.Message, event_message: str):
-        pass
+    def store_error(self, rule_event_id: infra_pb2.EventID, message: infra_pb2.Message, event_message: str):
+        event = infra_pb2.Event()
+        event.id.CopyFrom(new_event_id())
+        event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][ERRORS])
+        event.name = "Error. (Change it)"  # TODO change it
+        start_time = datetime.now()
+        seconds = int(start_time.timestamp())
+        nanos = int(start_time.microsecond * 1000)
+        event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
+        event.attached_message_ids.append(message.metadata.id)
+        message_bytes = ComponentEncoder().encode(MessageComponent(event_message)).encode()
+        event.body = message_bytes + event.body  # Encode to bytes
+        self.send_event(event)
 
-    def store_error(self, routing_key: str, hash_of_message: str, message: infra_pb2.Message, event_message: str):
-        pass
+    def store_matched_out_of_timeout(self, rule_event_id: infra_pb2.EventID, check_event: infra_pb2.Event, min_time,
+                                     max_time):
+        check_event.id.CopyFrom(new_event_id())
+        check_event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][MATCHED_OUT_OF_TIMEOUT])
+        self.send_event(check_event)
 
-    def store_matched_out_of_timeout(self, check_event: infra_pb2.Event, min_time, max_time):
-        pass
+    def store_matched(self, rule_event_id: infra_pb2.EventID, check_event: infra_pb2.Event):
+        check_event.id.CopyFrom(new_event_id())
+        if check_event.status == infra_pb2.EventStatus.SUCCESS:
+            check_event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][MATCHED_PASSED])
+        else:
+            check_event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][MATCHED_FAILED])
+        self.send_event(check_event)
 
-    def store_matched(self, check_event: infra_pb2.Event):
-        pass
+    def create_event_groups(self, rule_event_id: infra_pb2.EventID, name: str, description: str):
+        event = infra_pb2.Event()
+        event.id.CopyFrom(rule_event_id)
+        event.parent_id.CopyFrom(self.report_id)
+        event.name = name
+        start_time = datetime.now()
+        seconds = int(start_time.timestamp())
+        nanos = int(start_time.microsecond * 1000)
+        event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
+        message_bytes = ComponentEncoder().encode(MessageComponent(description)).encode()
+        event.body = message_bytes + event.body  # Encode to bytes
+        self.send_event(event)
+        for group_name in self.event_group_names:
+            event_id = new_event_id()
+            if not self.event_group_by_rule_id.__contains__(rule_event_id.id):
+                self.event_group_by_rule_id[rule_event_id.id] = dict()
+            self.event_group_by_rule_id[rule_event_id.id][group_name] = event_id
+            self.send_event_group(event_id, rule_event_id, group_name)
+
+
+def create_verification_event(parent_id: infra_pb2.EventID,
+                              compare_result: message_comparator_pb2.CompareMessageVsMessageResult) -> infra_pb2.Event:
+    verification_component = VerificationBuilder()
+    if len(compare_result.comparison_result.fields.keys()) > 0:
+        for field_name in compare_result.comparison_result.fields.keys():
+            verification_component.verification(field_name, compare_result.comparison_result.fields[field_name])
+
+    start_time = datetime.now()
+    seconds = int(start_time.timestamp())
+    nanos = int(start_time.microsecond * 1000)
+    status = infra_pb2.EventStatus.FAILED if comparator.get_status_type(
+        compare_result.comparison_result) == message_comparator_pb2.ComparisonEntryStatus.FAILED \
+        else infra_pb2.EventStatus.SUCCESS
+    event = infra_pb2.Event(id=new_event_id(),
+                            parent_id=parent_id,
+                            name="Check",  # fix it
+                            start_timestamp=Timestamp(seconds=seconds, nanos=nanos),
+                            status=status,
+                            body=ComponentEncoder().encode(verification_component.build()).encode())
+    event.attached_message_ids.append(compare_result.first_message_id)
+    event.attached_message_ids.append(compare_result.second_message_id)
+    return event
+
+
+class MessageComponent:
+
+    def __init__(self, message: str) -> None:
+        self.type = "message"
+        self.data = message
 
 
 class Verification:
@@ -167,6 +241,6 @@ class VerificationEntryUtils(object):
         return verification_entry
 
 
-class VerificationEncoder(JSONEncoder):
+class ComponentEncoder(JSONEncoder):
     def default(self, o):
         return o.__dict__

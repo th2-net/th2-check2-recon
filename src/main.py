@@ -8,6 +8,7 @@ import pika
 
 import services
 import store
+import comparator
 from th2 import infra_pb2
 
 logging.config.fileConfig(fname='../log_config.conf', disable_existing_loggers=False)
@@ -75,9 +76,10 @@ def import_submodules(package, recursive=True):
     return results
 
 
-event_store = store.Store(EVENT_STORAGE_URI)
+event_store = store.Store(EVENT_STORAGE_URI, RECON_NAME)
+comparator = comparator.Comparator(COMPARATOR_URI)
 rule_modules = import_submodules(RULES_PACKAGE_PATH)
-rules = [rule_module.Rule(event_store, ROUTING_KEYS, CACHE_SIZE, TIME_INTERVAL) for rule_module in
+rules = [rule_module.Rule(event_store, ROUTING_KEYS, CACHE_SIZE, TIME_INTERVAL, comparator) for rule_module in
          rule_modules.values()]
 
 recon = services.Recon(rules, queue_listeners)
