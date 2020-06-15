@@ -69,7 +69,7 @@ class Rule:
         out_of_timeout = False
         for message in messages_by_key.values():
             timestamp = self.cache.get_timestamp(message)
-            if timestamp < self.cache.min_time or timestamp > self.cache.min_time + self.cache.time_interval:
+            if timestamp < self.cache.min_time or timestamp > self.cache.min_time + self.cache.time_interval:  # FIXME min_time not thread safe
                 out_of_timeout = True
                 break
         if out_of_timeout:

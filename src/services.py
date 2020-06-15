@@ -92,8 +92,8 @@ class Cache:
         self.event_store = event_store
         self.rule_event_id = rule_event_id
         self.data = {key: dict() for key in routing_keys}
-        self.min_by_key = {key: set() for key in routing_keys}  # TODO fix
-        self.hash_by_timestamp = {key: {} for key in routing_keys}  # TODO fix
+        self.min_by_key = {key: set() for key in routing_keys}  # TODO fix search fast usable set for find minimum
+        self.hash_by_timestamp = {key: {} for key in routing_keys}  # TODO fix search fast usable set for find minimum
 
     def contains(self, hash_of_message: str, routing_key: str) -> bool:
         return self.data[routing_key].__contains__(hash_of_message)
