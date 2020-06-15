@@ -49,8 +49,11 @@ class Store:
         start_time = datetime.now()
         seconds = int(start_time.timestamp())
         nanos = int(start_time.microsecond * 1000)
+        status = infra_pb2.EventStatus.FAILED if name == MATCHED_FAILED or name == ERRORS \
+            else infra_pb2.EventStatus.SUCCESS
         event = infra_pb2.Event(id=event_id,
                                 name=name,
+                                status=status,
                                 start_timestamp=Timestamp(seconds=seconds, nanos=nanos))
         if parent_id is not None:
             event.parent_id.CopyFrom(parent_id)
@@ -134,7 +137,8 @@ class Store:
 
 
 def create_verification_event(parent_id: infra_pb2.EventID,
-                              compare_result: message_comparator_pb2.CompareMessageVsMessageResult) -> infra_pb2.Event:
+                              compare_result: message_comparator_pb2.CompareMessageVsMessageResult,
+                              field_value_by_name: dict) -> infra_pb2.Event:
     verification_component = VerificationBuilder()
     if len(compare_result.comparison_result.fields.keys()) > 0:
         for field_name in compare_result.comparison_result.fields.keys():
@@ -146,9 +150,17 @@ def create_verification_event(parent_id: infra_pb2.EventID,
     status = infra_pb2.EventStatus.FAILED if comparator.get_status_type(
         compare_result.comparison_result) == message_comparator_pb2.ComparisonEntryStatus.FAILED \
         else infra_pb2.EventStatus.SUCCESS
+    event_name = "Check"
+    for field_name in field_value_by_name.keys():
+        event_name += f" '{field_name}':"
+        for idx in range(len(field_value_by_name[field_name])):
+            field_value = field_value_by_name[field_name][idx]
+            if idx != 0:
+                event_name += ","
+            event_name += f"'{field_value}'"
     event = infra_pb2.Event(id=new_event_id(),
                             parent_id=parent_id,
-                            name="Check",  # fix it
+                            name=event_name,
                             start_timestamp=Timestamp(seconds=seconds, nanos=nanos),
                             status=status,
                             body=ComponentEncoder().encode(verification_component.build()).encode())

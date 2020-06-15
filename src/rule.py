@@ -9,6 +9,8 @@ from th2 import infra_pb2
 
 logger = logging.getLogger()
 
+IGNORED_HASH = "ignored"
+
 
 class Rule:
     def __init__(self, event_store: store.Store, routing_keys: list, cache_size: int, time_interval: int,
@@ -29,6 +31,10 @@ class Rule:
         pass
 
     @abstractmethod
+    def hashed_fields(self) -> list:
+        pass
+
+    @abstractmethod
     def hash(self, message: infra_pb2.Message) -> str:
         pass
 
@@ -38,6 +44,8 @@ class Rule:
 
     def process(self, message: infra_pb2.Message, routing_key: str, executor: ThreadPoolExecutor):
         hash_of_message = self.hash(message)
+        if hash_of_message == IGNORED_HASH:
+            return
         matched_messages = {routing_key: message}
         for key in self.routing_keys:
             if key == routing_key:
