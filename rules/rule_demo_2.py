@@ -7,6 +7,10 @@ from th2 import infra_pb2, message_comparator_pb2
 logger = logging.getLogger()
 
 
+def hashed_fields() -> list:
+    return ['TrdMatchID']
+
+
 class Rule(rule.Rule):
     def get_name(self) -> str:
         return "Rule_2_demo"
@@ -14,14 +18,11 @@ class Rule(rule.Rule):
     def get_description(self) -> str:
         return "Rule_2 is used for demo"
 
-    def hashed_fields(self) -> list:
-        return ['TrdMatchID']
-
     def hash(self, message: infra_pb2.Message) -> str:
         if message.metadata.message_type == 'Heartbeat':
             return rule.IGNORED_HASH
         str_fields = ""
-        for field_name in self.hashed_fields():
+        for field_name in hashed_fields():
             if message.fields[field_name].simple_value == '':
                 return rule.IGNORED_HASH
             str_fields += message.fields[field_name].simple_value
@@ -34,7 +35,7 @@ class Rule(rule.Rule):
             comparison_result = self.comparator.compare(messages[0], messages[1], settings).result()
             logger.debug(f"Rule: {self.get_name()}. Message type: {messages[0].metadata.message_type}. Check success")
             hash_field_values = dict()
-            for field_name in self.hashed_fields():
+            for field_name in hashed_fields():
                 if not hash_field_values.__contains__(field_name):
                     hash_field_values[field_name] = []
                 hash_field_values[field_name].append(messages[0].fields[field_name].simple_value)

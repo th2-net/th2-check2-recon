@@ -31,10 +31,6 @@ class Rule:
         pass
 
     @abstractmethod
-    def hashed_fields(self) -> list:
-        pass
-
-    @abstractmethod
     def hash(self, message: infra_pb2.Message) -> str:
         pass
 
