@@ -275,15 +275,15 @@ class EventsBatchCollector:
         self.lock.acquire()
         if event.parent_id not in self.batches:
             event_batch = infra_pb2.EventBatch(parent_event_id=event.parent_event_id)
-            batch, batch_timer = (event_batch, self._create_timer(event_batch))
+            batch_timer = self._create_timer(event_batch)
         else:
-            batch, batch_timer = self.batches.get(event.parent_id)
-        batch.events.append(event)
-        if len(batch.events) == self.max_batch_size:
+            event_batch, batch_timer = self.batches.get(event.parent_id)
+        event_batch.events.append(event)
+        if len(event_batch.events) == self.max_batch_size:
             batch_timer.cancel()
-            self._send_batch(batch)
+            self._send_batch(event_batch)
         else:
-            self.batches[event.parent_id] = (batch, batch_timer)
+            self.batches[event.parent_id] = (event_batch, batch_timer)
         self.lock.release()
 
     def _send_batch(self, batch: infra_pb2.EventBatch):
