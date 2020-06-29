@@ -6,7 +6,7 @@ services:
 variables:
   DOCKER_HOST: tcp://docker:2375
   DOCKER_TLS_CERTDIR: ""
-  IMAGE_NAME: $CI_REGISTRY/recone
+  IMAGE_NAME: $CI_REGISTRY/th2-recon
   VERSION: "1.1"
 
 before_script:
