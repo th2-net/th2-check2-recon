@@ -1,3 +1,7 @@
+This component provide feature to compare two or more queues of parsed message via user rules. Every rule should implement two methods: hash(message) and check(messages).
+Rule.hash - assepts parsed message and should returns string genrated with message fields values.
+Rule.check - assepts parsed message collection which contains message from every listened queue with equal hash. This method should compare messages and return TH2 Event with comparison details and results.
+
 Example of Recon component env variables:
 RABBITMQ_HOST=some-host-name-or-ip
 RABBITMQ_PORT=7777
