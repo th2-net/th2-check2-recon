@@ -4,6 +4,7 @@ import logging.config
 import os
 import pkgutil
 
+import sys
 import pika
 
 import services
@@ -11,7 +12,7 @@ import store
 import comparator
 from th2 import infra_pb2
 
-logging.config.fileConfig(fname='../log_config.conf', disable_existing_loggers=False)
+logging.config.fileConfig(fname=str(sys.argv[1]), disable_existing_loggers=False)
 logger = logging.getLogger()
 
 RABBITMQ_USER = os.getenv('RABBITMQ_USER')

@@ -1,4 +1,4 @@
-FROM python:3.7-slim-stretch
+FROM python:3.8-slim
 
 WORKDIR /usr/src/app
 
@@ -20,4 +20,4 @@ ENV RABBITMQ_HOST=some-host-name-or-ip \
     RECON_TIMEOUT=5 \
     TIME_INTERVAL=10;
 
-CMD [ "python", "./src/main.py" ]
+CMD [ "python", "./src/main.py", "log_config.conf"]
