@@ -11,6 +11,7 @@ from th2 import event_store_pb2
 from th2 import event_store_pb2_grpc
 from th2 import infra_pb2
 from th2 import message_comparator_pb2
+from th2.event_batch_collector import EventsBatchCollector
 
 logger = logging.getLogger()
 
@@ -35,6 +36,7 @@ class Store:
         self.event_group_by_rule_id = dict()
         self.event_group_names = [MATCHED_FAILED, MATCHED_PASSED, MATCHED_OUT_OF_TIMEOUT, NO_MATCH_WITHIN_TIMEOUT,
                                   NO_MATCH, ERRORS]
+        self.events_batch_collector = EventsBatchCollector(event_store_uri, 32, 60.0 * 60)
 
     def send_event(self, event: infra_pb2.Event):
         with grpc.insecure_channel(self.event_store_uri) as channel:
@@ -44,6 +46,9 @@ class Store:
                 logger.debug("Event id: %r" % event_response)
             except Exception:
                 logger.exception("Error while send event")
+
+    def send_events_batch(self, event: infra_pb2.Event):
+        self.events_batch_collector.put_event(event)
 
     def send_event_group(self, event_id: infra_pb2.EventID, parent_id: infra_pb2.EventID, name: str):
         start_time = datetime.now()
