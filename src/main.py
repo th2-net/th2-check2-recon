@@ -69,12 +69,15 @@ for queue_listener in queue_listeners.values():
 
 
 def callback(ch, method, properties, body):
-    message_batch = infra_pb2.MessageBatch()
-    message_batch.ParseFromString(body)
-    for message in message_batch.messages:
-        queue_listeners[method.routing_key].buffer.put(item=message, block=True)
-        logger.debug("Received message from %r:%r %r" % (
-            method.routing_key, message.metadata.message_type, message.metadata.timestamp.seconds))
+    try:
+        message_batch = infra_pb2.MessageBatch()
+        message_batch.ParseFromString(body)
+        for message in message_batch.messages:
+            queue_listeners[method.routing_key].buffer.put(item=message, block=True)
+            logger.debug("Received message from %r:%r %r" % (
+                method.routing_key, message.metadata.message_type, message.metadata.timestamp.seconds))
+    except Exception as e:
+        logging.exception(e)
 
 
 for queue_listener in queue_listeners.values():
