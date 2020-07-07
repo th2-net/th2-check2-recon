@@ -77,7 +77,9 @@ def callback(ch, method, properties, body):
             logger.debug("Received message from %r:%r %r" % (
                 method.routing_key, message.metadata.message_type, message.metadata.timestamp.seconds))
     except Exception as e:
-        logging.exception(e)
+        logger.exception(e)
+        logger.debug("Message is not parsed. %r: Message: %r" % (
+            method.routing_key, body))
 
 
 for queue_listener in queue_listeners.values():
