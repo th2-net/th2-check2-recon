@@ -1,15 +1,31 @@
+# *******************************************************************************
+#  * Copyright 2009-2020 Exactpro (Exactpro Systems Limited)
+#  *
+#  * Licensed under the Apache License, Version 2.0 (the "License");
+#  * you may not use this file except in compliance with the License.
+#  * You may obtain a copy of the License at
+#  *
+#  * http://www.apache.org/licenses/LICENSE-2.0
+#  *
+#  * Unless required by applicable law or agreed to in writing, software
+#  * distributed under the License is distributed on an "AS IS" BASIS,
+#  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  * See the License for the specific language governing permissions and
+#  * limitations under the License.
+#  ******************************************************************************
+
 import atexit
 import importlib
 import logging.config
 import os
 import pkgutil
-
 import sys
+
 import pika
 
+import comparator
 import services
 import store
-import comparator
 from th2 import infra_pb2
 
 logging.config.fileConfig(fname=str(sys.argv[1]), disable_existing_loggers=False)
@@ -30,6 +46,8 @@ EVENT_STORAGE_URI = os.getenv('EVENT_STORAGE')
 COMPARATOR_URI = os.getenv('COMPARATOR_URI')
 RECON_NAME = str(os.getenv('RECON_NAME'))
 RULES_PACKAGE_PATH = 'rules'
+RULES = [key.replace('{', '').replace('}', '').replace('"', '').replace(' ', '') for key in
+         os.getenv('RULES').split(',')]
 
 credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
 params = pika.ConnectionParameters(virtual_host=RABBITMQ_VHOST, host=RABBITMQ_HOST, port=RABBITMQ_PORT,
@@ -80,8 +98,11 @@ def import_submodules(package, recursive=True):
 event_store = store.Store(EVENT_STORAGE_URI, RECON_NAME)
 comparator = comparator.Comparator(COMPARATOR_URI)
 rule_modules = import_submodules(RULES_PACKAGE_PATH)
-rules = [rule_module.Rule(event_store, ROUTING_KEYS, CACHE_SIZE, TIME_INTERVAL, comparator) for rule_module in
-         rule_modules.values()]
+rules = []
+for rule in RULES:
+    if rule_modules.__contains__(rule):
+        rule_module = rule_modules[rule]
+        rules.append(rule_module.Rule(event_store, ROUTING_KEYS, CACHE_SIZE, TIME_INTERVAL, comparator))
 
 recon = services.Recon(rules, queue_listeners)
 
