@@ -18,7 +18,7 @@ ENV RABBITMQ_HOST=some-host-name-or-ip \
     COMPARATOR_URI=utility-host-name-or-ip:9999 \
     CACHE_SIZE=10 \
     RECON_TIMEOUT=5 \
-    RULES='{"rules.rule_demo_1", "rules.rule_demo_2"}' \
-    TIME_INTERVAL=10;
+    TIME_INTERVAL=10 \
+    RULES_CONFIGURATIONS_FILE=../rules_configurations.yaml;
 
 CMD [ "python", "./src/main.py", "log_config.conf"]

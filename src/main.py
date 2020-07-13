@@ -15,17 +15,18 @@
 #  ******************************************************************************
 
 import atexit
-import importlib
 import logging.config
 import os
-import pkgutil
 import sys
+from io import StringIO
 
+import yaml
 import pika
 
 import comparator
 import services
 import store
+from rules_configurations_loader import load_rules
 from th2 import infra_pb2
 
 logging.config.fileConfig(fname=str(sys.argv[1]), disable_existing_loggers=False)
@@ -45,9 +46,8 @@ TIME_INTERVAL = int(os.getenv('TIME_INTERVAL'))
 EVENT_STORAGE_URI = os.getenv('EVENT_STORAGE')
 COMPARATOR_URI = os.getenv('COMPARATOR_URI')
 RECON_NAME = str(os.getenv('RECON_NAME'))
+RULES_CONFIGURATIONS_PATH = str(os.getenv('RULES_CONFIGURATIONS_FILE'))
 RULES_PACKAGE_PATH = 'rules'
-RULES = [key.replace('{', '').replace('}', '').replace('"', '').replace(' ', '') for key in
-         os.getenv('RULES').split(',')]
 
 credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
 params = pika.ConnectionParameters(virtual_host=RABBITMQ_VHOST, host=RABBITMQ_HOST, port=RABBITMQ_PORT,
@@ -82,27 +82,13 @@ for queue_listener in queue_listeners.values():
                           callback,
                           auto_ack=True)
 
-
-def import_submodules(package, recursive=True):
-    if isinstance(package, str):
-        package = importlib.import_module(package)
-    results = {}
-    for loader, name, is_pkg in pkgutil.walk_packages(package.__path__):
-        full_name = package.__name__ + '.' + name
-        results[full_name] = importlib.import_module(full_name)
-        if recursive and is_pkg:
-            results.update(import_submodules(full_name))
-    return results
-
-
 event_store = store.Store(EVENT_STORAGE_URI, RECON_NAME)
 comparator = comparator.Comparator(COMPARATOR_URI)
-rule_modules = import_submodules(RULES_PACKAGE_PATH)
+loaded_rules = load_rules(RULES_CONFIGURATIONS_PATH, RULES_PACKAGE_PATH)
 rules = []
-for rule in RULES:
-    if rule_modules.__contains__(rule):
-        rule_module = rule_modules[rule]
-        rules.append(rule_module.Rule(event_store, ROUTING_KEYS, CACHE_SIZE, TIME_INTERVAL, comparator))
+for rule in loaded_rules:
+    rules.append(rule.module.Rule(event_store, ROUTING_KEYS, CACHE_SIZE, TIME_INTERVAL, comparator, rule.enabled,
+                                  rule.configuration))
 
 recon = services.Recon(rules, queue_listeners)
 

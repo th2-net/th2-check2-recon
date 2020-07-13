@@ -1,3 +1,17 @@
+# Copyright 2020-2020 Exactpro (Exactpro Systems Limited)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 from abc import abstractmethod
 from concurrent.futures.thread import ThreadPoolExecutor
@@ -14,13 +28,15 @@ IGNORED_HASH = "ignored"
 
 class Rule:
     def __init__(self, event_store: store.Store, routing_keys: list, cache_size: int, time_interval: int,
-                 message_comparator: comparator.Comparator) -> None:
+                 message_comparator: comparator.Comparator, enabled: bool, configuration) -> None:
         self.event_store = event_store
         self.routing_keys = routing_keys
         self.rule_event_id = store.new_event_id()
         self.event_store.create_event_groups(self.rule_event_id, self.get_name(), self.get_description())
         self.cache = services.Cache(cache_size, time_interval, routing_keys, event_store, self.rule_event_id)
         self.comparator = message_comparator
+        self.enabled = enabled
+        self.process_rule_configuration(configuration)
 
     @abstractmethod
     def get_name(self) -> str:
@@ -36,6 +52,10 @@ class Rule:
 
     @abstractmethod
     def check(self, messages_by_routing_key: dict) -> infra_pb2.Event:
+        pass
+
+    @abstractmethod
+    def process_rule_configuration(self, configuration):
         pass
 
     def process(self, message: infra_pb2.Message, routing_key: str, executor: ThreadPoolExecutor):

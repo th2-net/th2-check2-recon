@@ -16,4 +16,4 @@ CACHE_SIZE=10 - Max number of messages in cache for every queue
 RECON_TIMEOUT=5 - Timeout in seconds to check incoming messages from queue (need more detail)
 TIME_INTERVAL=10 - Window size in seconds for observing messages in cache (rewrite)
 RECON_NAME=DEMO - Name Recon report after symbol '_'. 'Recon_<RECON_NAME>'.
-RULES={"rules.<rule_name_1>", "rules.<rule_name_1>"}
+RULES_CONFIGURATIONS_FILE - path to the rule configuration file
