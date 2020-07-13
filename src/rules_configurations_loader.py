@@ -33,10 +33,11 @@ def load_rules(rules_configurations_path, rules_package_path) -> [RuleConfigurat
         rules_package_path = importlib.import_module(rules_package_path)
     imported_rules = []
     for rule in rules_configuration["rules"]:
-        imported_rules.append(
-            RuleConfiguration(
-                rule["name"],
-                importlib.import_module(rules_package_path.__name__ + '.' + rule["name"]),
-                rule["enabled"],
-                rule["configuration"]))
+        if rule["enabled"]:
+            imported_rules.append(
+                RuleConfiguration(
+                    rule["name"],
+                    importlib.import_module(rules_package_path.__name__ + '.' + rule["name"]),
+                    True,
+                    rule["configuration"]))
     return imported_rules

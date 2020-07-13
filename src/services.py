@@ -185,8 +185,7 @@ class Recon:
                     try:
                         message = queue_listener.buffer.get(block=True, timeout=queue_listener.timeout)
                         for rule in self.rules:
-                            if rule.enabled:
-                                rule.process(message, queue_listener.routing_key, executor)
+                            rule.process(message, queue_listener.routing_key, executor)
                     except queue.Empty:
                         logger.debug(
                             f"{queue_listener.routing_key}: no messages received within {queue_listener.timeout} sec")

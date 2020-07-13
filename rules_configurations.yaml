@@ -16,6 +16,6 @@ rules:
   - name: "rule_demo_1"
     enabled: true
     configuration: ~
-  - name: "rule_demo_1"
+  - name: "rule_demo_2"
     enabled: true
     configuration: ~

@@ -27,7 +27,7 @@ def hashed_fields() -> list:
 
 class Rule(rule.Rule):
 
-    def process_rule_configuration(self, configuration):
+    def configure(self, configuration):
         pass
 
     def get_name(self) -> str:

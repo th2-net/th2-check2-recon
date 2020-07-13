@@ -36,7 +36,7 @@ class Rule:
         self.cache = services.Cache(cache_size, time_interval, routing_keys, event_store, self.rule_event_id)
         self.comparator = message_comparator
         self.enabled = enabled
-        self.process_rule_configuration(configuration)
+        self.configure(configuration)
 
     @abstractmethod
     def get_name(self) -> str:
@@ -55,7 +55,7 @@ class Rule:
         pass
 
     @abstractmethod
-    def process_rule_configuration(self, configuration):
+    def configure(self, configuration):
         pass
 
     def process(self, message: infra_pb2.Message, routing_key: str, executor: ThreadPoolExecutor):
