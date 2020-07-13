@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-pika==1.1.0
-grpcio==1.27.2
-google-api-core==1.17.0
-PyYAML==5.3.1
+rules:
+  - name: "rule_demo_1"
+    enabled: true
+    configuration: ~
+  - name: "rule_demo_2"
+    enabled: true
+    configuration: ~
