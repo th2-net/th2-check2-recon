@@ -21,10 +21,11 @@ setup(
     install_requires=[
         'pika==1.1.0',
         'grpcio==1.27.2',
-        'google-api-core==1.17.0'
+        'google-api-core==1.17.0',
+        'PyYAML==5.3.1'
     ],
     url='https://gitlab.exactpro.com/vivarium/th2/th2-core-open-source/th2-recon/',
-    license='',
+    license='Apache License 2.0',
     author='TH2-devs',
     python_requires='>=3.7',
     author_email='th2-devs@exactprosystems.com',
