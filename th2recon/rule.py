@@ -26,13 +26,15 @@ IGNORED_HASH = "ignored"
 
 class Rule:
     def __init__(self, event_store: store.Store, routing_keys: list, cache_size: int, time_interval: int,
-                 message_comparator: comparator.Comparator) -> None:
+                 message_comparator: comparator.Comparator, enabled: bool, configuration) -> None:
         self.event_store = event_store
         self.routing_keys = routing_keys
         self.rule_event_id = store.new_event_id()
         self.event_store.create_event_groups(self.rule_event_id, self.get_name(), self.get_description())
         self.cache = services.Cache(cache_size, time_interval, routing_keys, event_store, self.rule_event_id)
         self.comparator = message_comparator
+        self.enabled = enabled
+        self.configure(configuration)
 
     @abstractmethod
     def get_name(self) -> str:
@@ -48,6 +50,10 @@ class Rule:
 
     @abstractmethod
     def check(self, messages_by_routing_key: dict) -> infra_pb2.Event:
+        pass
+
+    @abstractmethod
+    def configure(self, configuration):
         pass
 
     def process(self, message: infra_pb2.Message, routing_key: str, executor: ThreadPoolExecutor):
