@@ -17,8 +17,8 @@ import queue
 from concurrent.futures.thread import ThreadPoolExecutor
 from threading import Thread
 
-import store
-from th2 import infra_pb2
+from th2recon import store
+from th2recon.th2 import infra_pb2
 
 logger = logging.getLogger()
 

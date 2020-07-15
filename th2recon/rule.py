@@ -16,10 +16,8 @@ import logging
 from abc import abstractmethod
 from concurrent.futures.thread import ThreadPoolExecutor
 
-import comparator
-import services
-import store
-from th2 import infra_pb2
+from th2recon import comparator, store, services
+from th2recon.th2 import infra_pb2
 
 logger = logging.getLogger()
 
