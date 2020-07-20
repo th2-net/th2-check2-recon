@@ -40,7 +40,7 @@ class EventsBatchCollector:
                 self.batches[event.parent_id.id] = (event_batch, batch_timer)
             event_batch.events.append(event)
             if len(event_batch.events) == self.max_batch_size:
-                self.batches.pop(event.parent_id)
+                self.batches.pop(event.parent_id.id)
                 batch_timer.cancel()
             else:
                 return
