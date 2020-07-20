@@ -16,7 +16,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='th2-recon',
-    version='1.1',
+    version='1.1.42',
     packages=find_packages(include=['th2recon', 'th2recon.*']),
     install_requires=[
         'pika==1.1.0',
