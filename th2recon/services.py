@@ -179,15 +179,24 @@ class Recon:
     def run(self):
         with ThreadPoolExecutor(20) as executor:
             while not self.is_stopped:
+                some_not_empty = False
+                for queue_listener in self.queue_listeners.values():
+                    if not queue_listener.buffer.empty():
+                        some_not_empty = True
+                        break
                 for queue_listener in self.queue_listeners.values():
                     if self.is_stopped:
                         break
+                    timeout = 0 if some_not_empty else queue_listener.timeout
                     try:
-                        message = queue_listener.buffer.get(block=True, timeout=queue_listener.timeout)
+                        message = queue_listener.buffer.get(block=not some_not_empty,
+                                                            timeout=timeout)
                         for rule in self.rules:
                             rule.process(message, queue_listener.routing_key, executor)
                     except queue.Empty:
-                        logger.debug(
-                            f"{queue_listener.routing_key}: no messages received within {queue_listener.timeout} sec")
+                        if not some_not_empty:
+                            logger.debug(
+                                f"{queue_listener.routing_key}: no messages "
+                                f"from buffer within {queue_listener.timeout} sec")
             for rule in self.rules:
                 rule.cache.clear()
