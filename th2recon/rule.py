@@ -104,8 +104,7 @@ class Rule:
         min_timestamp = -1
         for message in messages_by_key.values():
             timestamp_seconds = message.metadata.timestamp.seconds
-            if timestamp_seconds > max_timestamp or max_timestamp == -1:
-                max_timestamp = timestamp_seconds
+            max_timestamp = max(timestamp_seconds, max_timestamp)
             if timestamp_seconds < min_timestamp or min_timestamp == -1:
                 min_timestamp = timestamp_seconds
         if max_timestamp - min_timestamp > self.cache.time_interval:
