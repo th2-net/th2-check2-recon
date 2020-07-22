@@ -56,6 +56,20 @@ class Rule:
     def configure(self, configuration):
         pass
 
+    def hashed_fields(self) -> list:
+        pass
+
+    def hashed_fields_values_to_string(self, message: infra_pb2.Message, separator: str) -> str:
+        """
+
+        :return: String in format "{separator}{field_name}: '{field_simple_value}'"
+        """
+        result = ""
+        for field_name in self.hashed_fields():
+            result += separator
+            result += f"{field_name}: '{message.fields[field_name].simple_value}'"
+        return result
+
     def process(self, message: infra_pb2.Message, routing_key: str, executor: ThreadPoolExecutor):
         hash_of_message = self.hash(message)
         if hash_of_message == IGNORED_HASH:
@@ -76,22 +90,32 @@ class Rule:
             else:
                 break
         if len(matched_messages) == len(self.routing_keys):
-            self.cache.put(routing_key, hash_of_message, message)
+            self.cache.put(routing_key, hash_of_message, message, self.hashed_fields_values_to_string(message, ". "))
             self.cache.remove_matched(hash_of_message, matched_messages)
+            executor.submit(self.store_event, routing_key, hash_of_message, message)
             executor.submit(self.check_and_store_event, matched_messages)
         else:
-            self.cache.put(routing_key, hash_of_message, message)
+            self.cache.put(routing_key, hash_of_message, message, self.hashed_fields_values_to_string(message, ". "))
+            executor.submit(self.store_event, routing_key, hash_of_message, message)
 
     def check_and_store_event(self, messages_by_key: dict):
         check_event = self.check(messages_by_key)
-        out_of_timeout = False
+        max_timestamp = -1
+        min_timestamp = -1
         for message in messages_by_key.values():
-            timestamp = self.cache.get_timestamp(message)
-            if timestamp < self.cache.min_time or timestamp > self.cache.min_time + self.cache.time_interval:  # FIXME min_time not thread safe
-                out_of_timeout = True
-                break
-        if out_of_timeout:
+            timestamp_seconds = message.metadata.timestamp.seconds
+            max_timestamp = max(timestamp_seconds, max_timestamp)
+            if timestamp_seconds < min_timestamp or min_timestamp == -1:
+                min_timestamp = timestamp_seconds
+        if max_timestamp - min_timestamp > self.cache.time_interval:
             self.event_store.store_matched_out_of_timeout(self.rule_event_id, check_event, self.cache.min_time,
                                                           self.cache.min_time + self.cache.time_interval)
         else:
             self.event_store.store_matched(self.rule_event_id, check_event)
+
+    def store_event(self, routing_key: str, hash_of_message: str, message: infra_pb2.Message):
+        event_name = f"Recd '{routing_key}': '{message.metadata.message_type}'"
+        event_name += self.hashed_fields_values_to_string(message, ". ")
+        event_message = f"Received '{message.metadata.message_type}' from '{routing_key}'. Hash: {hash_of_message}"
+        event_message += self.hashed_fields_values_to_string(message, "\n")
+        self.event_store.store_no_match_within_timeout(self.rule_event_id, message, event_name, event_message)

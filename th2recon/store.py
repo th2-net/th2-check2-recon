@@ -77,32 +77,33 @@ class Store:
         self.send_event_out_batch(event)
 
     def store_no_match_within_timeout(self, rule_event_id: infra_pb2.EventID, message: infra_pb2.Message,
-                                      event_message: str):
+                                      event_name: str, event_message: str):
         event = infra_pb2.Event()
         event.id.CopyFrom(new_event_id())
         event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][NO_MATCH_WITHIN_TIMEOUT])
-        event.name = "Removed from cache. (Change it)"  # TODO change it
+        event.name = event_name
         start_time = datetime.now()
         seconds = int(start_time.timestamp())
         nanos = int(start_time.microsecond * 1000)
         event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
         event.attached_message_ids.append(message.metadata.id)
         message_bytes = ComponentEncoder().encode(MessageComponent(event_message)).encode()
-        event.body = message_bytes + event.body  # Encode to bytes
+        event.body = message_bytes + event.body
         self.send_event(event)
 
-    def store_no_match(self, rule_event_id: infra_pb2.EventID, message: infra_pb2.Message, event_message: str):
+    def store_no_match(self, rule_event_id: infra_pb2.EventID, message: infra_pb2.Message,
+                       event_name: str, event_message: str):
         event = infra_pb2.Event()
         event.id.CopyFrom(new_event_id())
         event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][NO_MATCH])
-        event.name = "Removed from cache. (Change it)"  # TODO change it
+        event.name = event_name
         start_time = datetime.now()
         seconds = int(start_time.timestamp())
         nanos = int(start_time.microsecond * 1000)
         event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
         event.attached_message_ids.append(message.metadata.id)
         message_bytes = ComponentEncoder().encode(MessageComponent(event_message)).encode()
-        event.body = message_bytes + event.body  # Encode to bytes
+        event.body = message_bytes + event.body
         self.send_event(event)
 
     def store_error(self, rule_event_id: infra_pb2.EventID, message: infra_pb2.Message, event_message: str):
@@ -116,7 +117,7 @@ class Store:
         event.start_timestamp.CopyFrom(Timestamp(seconds=seconds, nanos=nanos))
         event.attached_message_ids.append(message.metadata.id)
         message_bytes = ComponentEncoder().encode(MessageComponent(event_message)).encode()
-        event.body = message_bytes + event.body  # Encode to bytes
+        event.body = message_bytes + event.body
         self.send_event(event)
 
     def store_matched_out_of_timeout(self, rule_event_id: infra_pb2.EventID, check_event: infra_pb2.Event, min_time,
