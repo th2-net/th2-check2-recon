@@ -117,14 +117,14 @@ class Cache:
 
     def remove_matched(self, hash_of_message: str, messages_by_routing_key: dict):
         for key in messages_by_routing_key.keys():
-            self.remove(key, hash_of_message, "")
+            self.remove(key, hash_of_message)
 
-    def put(self, routing_key: str, hash_of_message: str, message: infra_pb2.Message):
+    def put(self, routing_key: str, hash_of_message: str, message: infra_pb2.Message, event_name_suffix: str):
         if len(self.data[routing_key]) < self.cache_size:
             if self.contains(hash_of_message, routing_key):
                 event_message = f"The message was deleted because a new message was received with the same hash."
-                self.remove(routing_key, hash_of_message, event_message)
-                self.put(routing_key, hash_of_message, message)
+                self.remove(routing_key, hash_of_message, event_message, event_name_suffix)
+                self.put(routing_key, hash_of_message, message, event_name_suffix)
             else:
                 self.data[routing_key][hash_of_message] = message
                 self.min_by_key[routing_key].add(self.get_timestamp(message))
@@ -133,21 +133,20 @@ class Cache:
         else:
             event_message = f"The message was deleted because there was no free space in the cache."
             hash_for_del = self.hash_by_timestamp[routing_key][min(self.min_by_key[routing_key])]
-            self.remove(routing_key, hash_for_del, event_message)
-            self.put(routing_key, hash_of_message, message)
+            self.remove(routing_key, hash_for_del, event_message, event_name_suffix)
+            self.put(routing_key, hash_of_message, message, event_name_suffix)
 
     @staticmethod
     def get_timestamp(message: infra_pb2.Message):
         return message.metadata.timestamp.seconds * 1_000_000_000 + message.metadata.timestamp.nanos
 
-    def remove(self, routing_key: str, hash_of_message: str, event_message: str):
+    def remove(self, routing_key: str, hash_of_message: str, event_message="", event_name_suffix=""):
         message = self.data[routing_key][hash_of_message]
         timestamp = self.get_timestamp(message)
         if event_message != "":
-            if self.min_time <= timestamp <= self.min_time + self.time_interval:
-                self.event_store.store_no_match_within_timeout(self.rule_event_id, message, event_message)
-            else:
-                self.event_store.store_no_match(self.rule_event_id, message, event_message)
+            event_name = f"Removed '{routing_key}': '{message.metadata.message_type}'"
+            event_name += event_name_suffix
+            self.event_store.store_no_match(self.rule_event_id, message, event_name, event_message)
 
         self.hash_by_timestamp[routing_key].pop(timestamp)
         self.min_by_key[routing_key].remove(timestamp)
