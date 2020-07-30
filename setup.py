@@ -12,11 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from setuptools import setup, find_packages
+
+if os.environ.get('CI_COMMIT_TAG'):
+    version = os.environ['CI_COMMIT_TAG']
+else:
+    version = os.environ['CI_JOB_ID']
 
 setup(
     name='th2-recon',
-    version='1.1.47',
+    version=version,
     packages=find_packages(include=['th2recon', 'th2recon.*']),
     install_requires=[
         'pika==1.1.0',
