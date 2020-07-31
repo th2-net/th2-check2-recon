@@ -19,7 +19,7 @@ setup(
     name='th2-recon',
     version=__version__,
     packages=find_packages(include=['th2recon', 'th2recon.*']),
-    package_data={'version_file': ['th2recon/version.txt']},
+    package_data={'th2recon': ['version.txt']},
     install_requires=[
         'pika==1.1.0',
         'grpcio==1.27.2',
