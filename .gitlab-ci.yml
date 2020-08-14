@@ -1,10 +1,27 @@
 image: python:3.8-slim
 
-before_script:
-  - pip install -U twine
-  - python setup.py sdist
+stages:
+  - meta
+  - deploy
+
+getGitMeta:
+  image:
+    name: alpine/git:v2.26.2
+    entrypoint: [""]
+  stage: meta
+  script:
+    - echo "REVISION=$(git rev-list --count HEAD)" >> meta.env
+  artifacts:
+    reports:
+      dotenv: meta.env
+
 
 pypi_publish:
   stage: deploy
+  dependencies:
+    - getGitMeta
   script:
+    - echo $REVISION
+    - pip install -U twine
+    - python setup.py sdist
     - twine upload --repository-url $PYPI_REPOSITORY_URL --username $PYPI_USER --password $PYPI_PASSWORD dist/*

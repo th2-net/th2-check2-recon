@@ -96,6 +96,10 @@ def log_result(indices, cache, queue_listeners):
     logging.info(result)
 
 
+def get_timestamp(message: infra_pb2.Message):
+    return message.metadata.timestamp.seconds * 1_000_000_000 + message.metadata.timestamp.nanos
+
+
 class Cache:
 
     def __init__(self, cache_size: int, time_interval: int, routing_keys: list, event_store: store.Store,
@@ -127,22 +131,18 @@ class Cache:
                 self.put(routing_key, hash_of_message, message, event_name_suffix)
             else:
                 self.data[routing_key][hash_of_message] = message
-                self.min_by_key[routing_key].add(self.get_timestamp(message))
-                self.hash_by_timestamp[routing_key][self.get_timestamp(message)] = hash_of_message
-                self.min_time = max(self.min_time, self.get_timestamp(message) - self.time_interval)
+                self.min_by_key[routing_key].add(get_timestamp(message))
+                self.hash_by_timestamp[routing_key][get_timestamp(message)] = hash_of_message
+                self.min_time = max(self.min_time, get_timestamp(message) - self.time_interval)
         else:
             event_message = f"The message was deleted because there was no free space in the cache."
             hash_for_del = self.hash_by_timestamp[routing_key][min(self.min_by_key[routing_key])]
             self.remove(routing_key, hash_for_del, event_message, event_name_suffix)
             self.put(routing_key, hash_of_message, message, event_name_suffix)
 
-    @staticmethod
-    def get_timestamp(message: infra_pb2.Message):
-        return message.metadata.timestamp.seconds * 1_000_000_000 + message.metadata.timestamp.nanos
-
     def remove(self, routing_key: str, hash_of_message: str, event_message="", event_name_suffix=""):
         message = self.data[routing_key][hash_of_message]
-        timestamp = self.get_timestamp(message)
+        timestamp = get_timestamp(message)
         if event_message != "":
             event_name = f"Removed '{routing_key}': '{message.metadata.message_type}'"
             event_name += event_name_suffix
@@ -177,25 +177,28 @@ class Recon:
 
     def run(self):
         with ThreadPoolExecutor(20) as executor:
-            while not self.is_stopped:
-                some_not_empty = False
-                for queue_listener in self.queue_listeners.values():
-                    if not queue_listener.buffer.empty():
-                        some_not_empty = True
-                        break
-                for queue_listener in self.queue_listeners.values():
-                    if self.is_stopped:
-                        break
-                    timeout = 0 if some_not_empty else queue_listener.timeout
-                    try:
-                        message = queue_listener.buffer.get(block=not some_not_empty,
-                                                            timeout=timeout)
-                        for rule in self.rules:
-                            rule.process(message, queue_listener.routing_key, executor)
-                    except queue.Empty:
-                        if not some_not_empty:
-                            logger.debug(
-                                f"{queue_listener.routing_key}: no messages "
-                                f"from buffer within {queue_listener.timeout} sec")
-            for rule in self.rules:
-                rule.cache.clear()
+            try:
+                while not self.is_stopped:
+                    some_not_empty = False
+                    for queue_listener in self.queue_listeners.values():
+                        if not queue_listener.buffer.empty():
+                            some_not_empty = True
+                            break
+                    for queue_listener in self.queue_listeners.values():
+                        if self.is_stopped:
+                            break
+                        timeout = 0 if some_not_empty else queue_listener.timeout
+                        try:
+                            message = queue_listener.buffer.get(block=not some_not_empty,
+                                                                timeout=timeout)
+                            for rule in self.rules:
+                                rule.process(message, queue_listener.routing_key, executor)
+                        except queue.Empty:
+                            if not some_not_empty:
+                                logger.debug(
+                                    f"{queue_listener.routing_key}: no messages "
+                                    f"from buffer within {queue_listener.timeout} sec")
+                for rule in self.rules:
+                    rule.cache.clear()
+            except Exception as e:
+                logger.error("service.run(): ", e)
