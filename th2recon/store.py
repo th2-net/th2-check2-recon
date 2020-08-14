@@ -194,6 +194,20 @@ class MessageComponent:
         self.data = message
 
 
+class TableComponent:
+
+    def __init__(self, headers: list) -> None:
+        self.type = "table"
+        self.rows = []
+        self.headers = headers
+
+    def add_row(self, *args):
+        row = {}
+        for arg in args:
+            row[self.headers[args.index(arg)]] = arg
+        self.rows.append(row)
+
+
 class Verification:
 
     def __init__(self) -> None:

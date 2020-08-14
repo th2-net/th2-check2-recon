@@ -113,4 +113,4 @@ class Rule:
     def logging_event(self, routing_key: str, hash_of_message: str, message: infra_pb2.Message):
         event_message = f"Received '{message.metadata.message_type}' from '{routing_key}'. Hash: {hash_of_message}"
         event_message += self.hashed_fields_values_to_string(message, " ")
-        logger.debug(f"RULE: {event_message}")
+        logger.debug(f"RULE '{self.get_name()}': {event_message}")
