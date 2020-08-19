@@ -198,6 +198,9 @@ class Recon:
                                 logger.debug(
                                     f"{queue_listener.routing_key}: no messages "
                                     f"from buffer within {queue_listener.timeout} sec")
+                        except Exception as e:
+                            logger.error(e)
+
                 for rule in self.rules:
                     rule.cache.clear()
             except Exception as e:
