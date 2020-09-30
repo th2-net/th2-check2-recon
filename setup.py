@@ -15,6 +15,7 @@
 import os
 
 from setuptools import setup, find_packages
+from os import environ
 
 setup(
     name=environ['APP_NAME'] if 'APP_NAME' in environ else 'th2-recon',
