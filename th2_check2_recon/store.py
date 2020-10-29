@@ -19,23 +19,25 @@ from json import JSONEncoder
 
 import grpc
 from google.protobuf.timestamp_pb2 import Timestamp
+from grpc_common import common_pb2
+from grpc_estore import estore_pb2_grpc, estore_pb2
+from grpc_util import util_pb2
 
-from th2recon import comparator
-from th2recon.event_batch_collector import EventsBatchCollector
-from th2recon.th2 import infra_pb2, message_comparator_pb2, event_store_pb2_grpc, event_store_pb2
+from th2_check2_recon import comparator
+from th2_check2_recon.event_batch_collector import EventsBatchCollector
 
 logger = logging.getLogger()
 
-MATCHED_FAILED = "Matched failed"
-MATCHED_PASSED = "Matched passed"
-MATCHED_OUT_OF_TIMEOUT = "Matched out of timeout"
-NO_MATCH_WITHIN_TIMEOUT = "No match within timeout"
-NO_MATCH = "No match"
-ERRORS = "Errors"
+MATCHED_FAILED = 'Matched failed'
+MATCHED_PASSED = 'Matched passed'
+MATCHED_OUT_OF_TIMEOUT = 'Matched out of timeout'
+NO_MATCH_WITHIN_TIMEOUT = 'No match within timeout'
+NO_MATCH = 'No match'
+ERRORS = 'Errors'
 
 
 def new_event_id():
-    return infra_pb2.EventID(id=str(uuid.uuid1()))
+    return common_pb2.EventID(id=str(uuid.uuid1()))
 
 
 class Store:
@@ -50,35 +52,35 @@ class Store:
         self.event_group_names = [MATCHED_FAILED, MATCHED_PASSED, MATCHED_OUT_OF_TIMEOUT, NO_MATCH_WITHIN_TIMEOUT,
                                   NO_MATCH, ERRORS]
 
-    def send_event(self, event: infra_pb2.Event):
+    def send_event(self, event: common_pb2.Event):
         self.events_batch_collector.put_event(event)
 
-    def send_event_out_batch(self, event: infra_pb2.Event):
+    def send_event_out_batch(self, event: common_pb2.Event):
         with grpc.insecure_channel(self.event_store_uri) as channel:
             try:
-                store_stub = event_store_pb2_grpc.EventStoreServiceStub(channel)
-                event_response = store_stub.StoreEvent(event_store_pb2.StoreEventRequest(event=event))
-                logger.debug("Event id: %r" % event_response)
-            except Exception:
-                logger.exception("Error while send event")
+                store_stub = estore_pb2_grpc.EventStoreServiceStub(channel)
+                event_response = store_stub.StoreEvent(estore_pb2.StoreEventRequest(event=event))
+                logger.debug(f'Event id: {event_response!r}')
+            except Exception as e:
+                logger.exception('Error while send event', e)
 
-    def send_event_group(self, event_id: infra_pb2.EventID, parent_id: infra_pb2.EventID, name: str):
+    def send_event_group(self, event_id: common_pb2.EventID, parent_id: common_pb2.EventID, name: str):
         start_time = datetime.now()
         seconds = int(start_time.timestamp())
         nanos = int(start_time.microsecond * 1000)
-        status = infra_pb2.EventStatus.FAILED if name == MATCHED_FAILED or name == ERRORS \
-            else infra_pb2.EventStatus.SUCCESS
-        event = infra_pb2.Event(id=event_id,
-                                name=name,
-                                status=status,
-                                start_timestamp=Timestamp(seconds=seconds, nanos=nanos))
+        status = common_pb2.EventStatus.FAILED if name == MATCHED_FAILED or name == ERRORS \
+            else common_pb2.EventStatus.SUCCESS
+        event = common_pb2.Event(id=event_id,
+                                 name=name,
+                                 status=status,
+                                 start_timestamp=Timestamp(seconds=seconds, nanos=nanos))
         if parent_id is not None:
             event.parent_id.CopyFrom(parent_id)
         self.send_event_out_batch(event)
 
-    def store_no_match_within_timeout(self, rule_event_id: infra_pb2.EventID, message: infra_pb2.Message,
+    def store_no_match_within_timeout(self, rule_event_id: common_pb2.EventID, message: common_pb2.Message,
                                       event_name: str, event_message: str):
-        event = infra_pb2.Event()
+        event = common_pb2.Event()
         event.id.CopyFrom(new_event_id())
         event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][NO_MATCH_WITHIN_TIMEOUT])
         event.name = event_name
@@ -91,9 +93,9 @@ class Store:
         event.body = message_bytes + event.body
         self.send_event(event)
 
-    def store_no_match(self, rule_event_id: infra_pb2.EventID, message: infra_pb2.Message,
+    def store_no_match(self, rule_event_id: common_pb2.EventID, message: common_pb2.Message,
                        event_name: str, event_message: str):
-        event = infra_pb2.Event()
+        event = common_pb2.Event()
         event.id.CopyFrom(new_event_id())
         event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][NO_MATCH])
         event.name = event_name
@@ -106,11 +108,11 @@ class Store:
         event.body = message_bytes + event.body
         self.send_event(event)
 
-    def store_error(self, rule_event_id: infra_pb2.EventID, message: infra_pb2.Message, event_message: str):
-        event = infra_pb2.Event()
+    def store_error(self, rule_event_id: common_pb2.EventID, message: common_pb2.Message, event_message: str):
+        event = common_pb2.Event()
         event.id.CopyFrom(new_event_id())
         event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][ERRORS])
-        event.name = "Error. (Change it)"  # TODO change it
+        event.name = 'Error. (Change it)'  # TODO change it
         start_time = datetime.now()
         seconds = int(start_time.timestamp())
         nanos = int(start_time.microsecond * 1000)
@@ -120,22 +122,22 @@ class Store:
         event.body = message_bytes + event.body
         self.send_event(event)
 
-    def store_matched_out_of_timeout(self, rule_event_id: infra_pb2.EventID, check_event: infra_pb2.Event, min_time,
+    def store_matched_out_of_timeout(self, rule_event_id: common_pb2.EventID, check_event: common_pb2.Event, min_time,
                                      max_time):
         check_event.id.CopyFrom(new_event_id())
         check_event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][MATCHED_OUT_OF_TIMEOUT])
         self.send_event(check_event)
 
-    def store_matched(self, rule_event_id: infra_pb2.EventID, check_event: infra_pb2.Event):
+    def store_matched(self, rule_event_id: common_pb2.EventID, check_event: common_pb2.Event):
         check_event.id.CopyFrom(new_event_id())
-        if check_event.status == infra_pb2.EventStatus.SUCCESS:
+        if check_event.status == common_pb2.EventStatus.SUCCESS:
             check_event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][MATCHED_PASSED])
         else:
             check_event.parent_id.CopyFrom(self.event_group_by_rule_id[rule_event_id.id][MATCHED_FAILED])
         self.send_event(check_event)
 
-    def create_event_groups(self, rule_event_id: infra_pb2.EventID, name: str, description: str):
-        event = infra_pb2.Event()
+    def create_event_groups(self, rule_event_id: common_pb2.EventID, name: str, description: str):
+        event = common_pb2.Event()
         event.id.CopyFrom(rule_event_id)
         event.parent_id.CopyFrom(self.report_id)
         event.name = name
@@ -154,9 +156,9 @@ class Store:
             self.send_event_group(event_id, rule_event_id, group_name)
 
 
-def create_verification_event(parent_id: infra_pb2.EventID,
-                              compare_result: message_comparator_pb2.CompareMessageVsMessageResult,
-                              field_value_by_name: dict) -> infra_pb2.Event:
+def create_verification_event(parent_id: common_pb2.EventID,
+                              compare_result: util_pb2.CompareMessageVsMessageResult,
+                              field_value_by_name: dict) -> common_pb2.Event:
     verification_component = VerificationBuilder()
     if len(compare_result.comparison_result.fields.keys()) > 0:
         for field_name in compare_result.comparison_result.fields.keys():
@@ -165,23 +167,23 @@ def create_verification_event(parent_id: infra_pb2.EventID,
     start_time = datetime.now()
     seconds = int(start_time.timestamp())
     nanos = int(start_time.microsecond * 1000)
-    status = infra_pb2.EventStatus.FAILED if comparator.get_status_type(
-        compare_result.comparison_result) == message_comparator_pb2.ComparisonEntryStatus.FAILED \
-        else infra_pb2.EventStatus.SUCCESS
-    event_name = "Check"
+    status = common_pb2.EventStatus.FAILED if comparator.get_status_type(
+        compare_result.comparison_result) == util_pb2.ComparisonEntryStatus.FAILED \
+        else common_pb2.EventStatus.SUCCESS
+    event_name = 'Check'
     for field_name in field_value_by_name.keys():
         event_name += f" '{field_name}':"
         for idx in range(len(field_value_by_name[field_name])):
             field_value = field_value_by_name[field_name][idx]
             if idx != 0:
-                event_name += ","
+                event_name += ','
             event_name += f"'{field_value}'"
-    event = infra_pb2.Event(id=new_event_id(),
-                            parent_id=parent_id,
-                            name=event_name,
-                            start_timestamp=Timestamp(seconds=seconds, nanos=nanos),
-                            status=status,
-                            body=ComponentEncoder().encode(verification_component.build()).encode())
+    event = common_pb2.Event(id=new_event_id(),
+                             parent_id=parent_id,
+                             name=event_name,
+                             start_timestamp=Timestamp(seconds=seconds, nanos=nanos),
+                             status=status,
+                             body=ComponentEncoder().encode(verification_component.build()).encode())
     event.attached_message_ids.append(compare_result.first_message_id)
     event.attached_message_ids.append(compare_result.second_message_id)
     return event
@@ -190,14 +192,14 @@ def create_verification_event(parent_id: infra_pb2.EventID,
 class MessageComponent:
 
     def __init__(self, message: str) -> None:
-        self.type = "message"
+        self.type = 'message'
         self.data = message
 
 
 class TableComponent:
 
     def __init__(self, headers: list) -> None:
-        self.type = "table"
+        self.type = 'table'
         self.rows = []
         self.headers = headers
 
@@ -227,7 +229,7 @@ class VerificationBuilder:
 
     def build(self) -> Verification:
         verification = Verification()
-        verification.type = "verification"
+        verification.type = 'verification'
         verification.status = self.status
         verification.fields = self.fields
         return verification
@@ -245,23 +247,23 @@ class VerificationEntry:
         self.fields = dict()
 
 
-def to_verification_status(status: message_comparator_pb2.ComparisonEntryStatus) -> str:
-    if status == message_comparator_pb2.ComparisonEntryStatus.NA:
+def to_verification_status(status: util_pb2.ComparisonEntryStatus) -> str:
+    if status == util_pb2.ComparisonEntryStatus.NA:
         return 'NA'
     else:
-        if status == message_comparator_pb2.ComparisonEntryStatus.FAILED:
+        if status == util_pb2.ComparisonEntryStatus.FAILED:
             return 'FAILED'
     return 'PASSED'
 
 
 def to_verification_filter_operation(operation) -> str:
-    if operation == infra_pb2.FilterOperation.EQUAL:
+    if operation == common_pb2.FilterOperation.EQUAL:
         return 'EQUAL'
-    if operation == infra_pb2.FilterOperation.NOT_EQUAL:
+    if operation == common_pb2.FilterOperation.NOT_EQUAL:
         return 'NOT_EQUAL'
-    if operation == infra_pb2.FilterOperation.EMPTY:
+    if operation == common_pb2.FilterOperation.EMPTY:
         return 'EMPTY'
-    if operation == infra_pb2.FilterOperation.NOT_EMPTY:
+    if operation == common_pb2.FilterOperation.NOT_EMPTY:
         return 'NOT_EMPTY'
 
 
@@ -274,13 +276,13 @@ class VerificationEntryUtils(object):
         verification_entry.status = to_verification_status(comparison_result.status)
         verification_entry.key = comparison_result.is_key
         verification_entry.operation = to_verification_filter_operation(comparison_result.operation)
-        if comparison_result.type == message_comparator_pb2.ComparisonEntryType.COLLECTION:
-            verification_entry.type = "collection"
+        if comparison_result.type == util_pb2.ComparisonEntryType.COLLECTION:
+            verification_entry.type = 'collection'
             for field_name in comparison_result.fields.keys():
                 verification_entry.fields[field_name] = cls.create_verification_entry(
                     comparison_result.fields[field_name])
         else:
-            verification_entry.type = "field"
+            verification_entry.type = 'field'
 
         return verification_entry
 

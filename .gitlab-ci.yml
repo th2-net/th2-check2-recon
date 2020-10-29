@@ -1,13 +1,24 @@
 variables:
-  APP_NAME: "th2-recon"
-  MAJOR_VERSION: "1"
-  MINOR_VERSION: "2"
-  MAINTENANCE_VERSION: '59'
-  BUILD_ENABLED: 'false'
+  APP_NAME: 'th2-check2-recon'
+  MAJOR_VERSION: '2'
+  MINOR_VERSION: '0'
+  MAINTENANCE_VERSION: '0'
   DOCKER_PUBLISH_ENABLED: 'false'
-  PYPI_PUBLISH_ENABLED: 'true'
 
 include:
   - project: 'vivarium/th2/pipelines'
     ref: master
-    file: '/.gitlab-ci-python.yml'
+    file: '/.gitlab-ci-common.yml'
+
+build:
+  extends: .build-template
+  variables:
+    DOCKER_INTERMEDIATE_TAG: "${CI_COMMIT_SHA}"
+    DOCKER_BUILD_ARGS: >-
+      --build-arg pypi_repository_url=${PYPI_REPOSITORY_URL}
+      --build-arg pypi_user=${PYPI_USER}
+      --build-arg pypi_password=${PYPI_PASSWORD}
+      --build-arg app_name=${APP_NAME}
+      --build-arg app_version=${APP_VERSION}
+  dependencies:
+    - makeMetaEnv

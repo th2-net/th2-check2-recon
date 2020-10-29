@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-pika==1.1.0
-grpcio==1.27.2
-google-api-core==1.17.0
+
+grpcio-tools==1.33.1
+google-api-core==1.23.0
 PyYAML==5.3.1
+twine==3.2.0
+--extra-index-url https://nexus.exactpro.com/repository/th2-pypi/simple/
+grpc-common==2.1.7
+grpc-estore==2.1.2
+grpc-util==2.1.0
