@@ -17,8 +17,9 @@ import queue
 from concurrent.futures.thread import ThreadPoolExecutor
 from threading import Thread
 
-from th2recon import store
-from th2recon.th2 import infra_pb2
+from grpc_common import common_pb2
+
+from th2_check2_recon import store
 
 logger = logging.getLogger()
 
@@ -42,15 +43,15 @@ def log_table_messages(messages, col_size):
         for field_name in message.fields.keys():
             field_names.append(field_name)
 
-    result += '\n|' + "message_type".ljust(col_size, ' ') + '|'
+    result += '\n|' + 'message_type'.ljust(col_size, ' ') + '|'
     for message in messages:
         result += message.metadata.message_type.ljust(col_size, ' ') + '|'
 
-    result += '\n|' + "id".ljust(col_size, ' ') + '|'
+    result += '\n|' + 'id'.ljust(col_size, ' ') + '|'
     for message in messages:
         result += str(message.metadata.id.sequence).ljust(col_size, ' ') + '|'
 
-    result += '\n|' + "timestamp".ljust(col_size, ' ') + '|'
+    result += '\n|' + 'timestamp'.ljust(col_size, ' ') + '|'
     for message in messages:
         result += str(message.metadata.timestamp.seconds).ljust(col_size, ' ') + '|'
 
@@ -58,28 +59,28 @@ def log_table_messages(messages, col_size):
     for field_name in field_names:
         result += '\n|' + field_name.ljust(col_size, ' ') + '|'
         for message in messages:
-            value: infra_pb2.Value = message.fields[field_name]
+            value: common_pb2.Value = message.fields[field_name]
             if len(value.simple_value) > 0:
                 field_value = value.simple_value
             else:
                 if len(value.list_value.values) > 0:
-                    field_value = "NOT_EMPTY_LIST"  # TODO fix
+                    field_value = 'NOT_EMPTY_LIST'  # TODO fix
                 else:
                     if len(value.message_value.fields) > 0:
-                        field_value = "SUB_MESSAGE"  # TODO fix
+                        field_value = 'SUB_MESSAGE'  # TODO fix
                     else:
-                        field_value = "EMPTY"
+                        field_value = 'EMPTY'
             result += field_value.ljust(col_size, ' ') + '|'
     return result
 
 
 def log_result(indices, cache, queue_listeners):
     col_size = 30
-    result = ""
+    result = ''
     for elem_idx in range(len(indices)):
 
         result += '\n\n' + '*' * ((len(queue_listeners.values()) + 1) * col_size + len(queue_listeners.values()) + 2)
-        result += '\n|' + "Field".ljust(col_size, ' ') + '|'
+        result += '\n|' + 'Field'.ljust(col_size, ' ') + '|'
         for i in range(len(queue_listeners.values())):
             key = ""
             for queue_listener in queue_listeners.values():
@@ -96,14 +97,14 @@ def log_result(indices, cache, queue_listeners):
     logging.info(result)
 
 
-def get_timestamp(message: infra_pb2.Message):
+def get_timestamp(message: common_pb2.Message):
     return message.metadata.timestamp.seconds * 1_000_000_000 + message.metadata.timestamp.nanos
 
 
 class Cache:
 
     def __init__(self, cache_size: int, time_interval: int, routing_keys: list, event_store: store.Store,
-                 rule_event_id: infra_pb2.EventID) -> None:
+                 rule_event_id: common_pb2.EventID) -> None:
         self.cache_size = cache_size
         self.time_interval = time_interval * 1_000_000_000
         self.min_time = 0
@@ -116,17 +117,17 @@ class Cache:
     def contains(self, hash_of_message: str, routing_key: str) -> bool:
         return self.data[routing_key].__contains__(hash_of_message)
 
-    def get(self, routing_key: str, hash_of_message: str) -> infra_pb2.Message:
+    def get(self, routing_key: str, hash_of_message: str) -> common_pb2.Message:
         return self.data[routing_key][hash_of_message]
 
     def remove_matched(self, hash_of_message: str, messages_by_routing_key: dict):
         for key in messages_by_routing_key.keys():
             self.remove(key, hash_of_message)
 
-    def put(self, routing_key: str, hash_of_message: str, message: infra_pb2.Message, event_name_suffix: str):
+    def put(self, routing_key: str, hash_of_message: str, message: common_pb2.Message, event_name_suffix: str):
         if len(self.data[routing_key]) < self.cache_size:
             if self.contains(hash_of_message, routing_key):
-                event_message = f"The message was deleted because a new message was received with the same hash."
+                event_message = 'The message was deleted because a new message was received with the same hash.'
                 self.remove(routing_key, hash_of_message, event_message, event_name_suffix)
                 self.put(routing_key, hash_of_message, message, event_name_suffix)
             else:
@@ -135,7 +136,7 @@ class Cache:
                 self.hash_by_timestamp[routing_key][get_timestamp(message)] = hash_of_message
                 self.min_time = max(self.min_time, get_timestamp(message) - self.time_interval)
         else:
-            event_message = f"The message was deleted because there was no free space in the cache."
+            event_message = 'The message was deleted because there was no free space in the cache.'
             hash_for_del = self.hash_by_timestamp[routing_key][min(self.min_by_key[routing_key])]
             self.remove(routing_key, hash_for_del, event_message, event_name_suffix)
             self.put(routing_key, hash_of_message, message, event_name_suffix)
@@ -143,7 +144,7 @@ class Cache:
     def remove(self, routing_key: str, hash_of_message: str, event_message="", event_name_suffix=""):
         message = self.data[routing_key][hash_of_message]
         timestamp = get_timestamp(message)
-        if event_message != "":
+        if event_message != '':
             event_name = f"Removed '{routing_key}': '{message.metadata.message_type}'"
             event_name += event_name_suffix
             self.event_store.store_no_match(self.rule_event_id, message, event_name, event_message)
@@ -153,7 +154,7 @@ class Cache:
         self.data[routing_key].pop(hash_of_message)
 
     def clear(self):
-        event_message = "The message was deleted because the Recon stopped."
+        event_message = 'The message was deleted because the Recon stopped.'
         for routing_key in self.data.keys():
             while len(self.data[routing_key]) > 0:  # TODO fix it
                 for hash_of_message in self.data[routing_key].keys():
@@ -196,12 +197,12 @@ class Recon:
                         except queue.Empty:
                             if not some_not_empty:
                                 logger.debug(
-                                    f"{queue_listener.routing_key}: no messages "
-                                    f"from buffer within {queue_listener.timeout} sec")
+                                    f'{queue_listener.routing_key}: no messages '
+                                    f'from buffer within {queue_listener.timeout} sec')
                         except Exception as e:
                             logger.error(e)
 
                 for rule in self.rules:
                     rule.cache.clear()
             except Exception as e:
-                logger.error("service.run(): ", e)
+                logger.error('service.run(): ', e)

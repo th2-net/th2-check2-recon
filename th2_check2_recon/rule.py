@@ -16,12 +16,13 @@ import logging
 from abc import abstractmethod
 from concurrent.futures.thread import ThreadPoolExecutor
 
-from th2recon import comparator, store, services
-from th2recon.th2 import infra_pb2
+from grpc_common import common_pb2
+
+from th2_check2_recon import store, comparator, services
 
 logger = logging.getLogger()
 
-IGNORED_HASH = "ignored"
+IGNORED_HASH = 'ignored'
 
 
 class Rule:
@@ -45,11 +46,11 @@ class Rule:
         pass
 
     @abstractmethod
-    def hash(self, message: infra_pb2.Message) -> str:
+    def hash(self, message: common_pb2.Message) -> str:
         pass
 
     @abstractmethod
-    def check(self, messages_by_routing_key: dict) -> infra_pb2.Event:
+    def check(self, messages_by_routing_key: dict) -> common_pb2.Event:
         pass
 
     @abstractmethod
@@ -59,7 +60,7 @@ class Rule:
     def hashed_fields(self) -> list:
         pass
 
-    def hashed_fields_values_to_string(self, message: infra_pb2.Message, separator: str) -> str:
+    def hashed_fields_values_to_string(self, message: common_pb2.Message, separator: str) -> str:
         """
 
         :return: String in format "{separator}{field_name}: '{field_simple_value}'"
@@ -70,7 +71,7 @@ class Rule:
             result += f"{field_name}: '{message.fields[field_name].simple_value}'"
         return result
 
-    def process(self, message: infra_pb2.Message, routing_key: str, executor: ThreadPoolExecutor):
+    def process(self, message: common_pb2.Message, routing_key: str, executor: ThreadPoolExecutor):
         hash_of_message = self.hash(message)
         if hash_of_message == IGNORED_HASH:
             return
@@ -81,8 +82,8 @@ class Rule:
                     matched_messages[key] = self.cache.get(key, hash_of_message)
                 else:
                     event_message = \
-                        f"The message with the hash={hash_of_message} already contains in cache of {key}. " + \
-                        "The implementation of the hash function is incorrect, as it allows collisions."
+                        f'The message with the hash={hash_of_message} already contains in cache of {key}. ' \
+                        f'The implementation of the hash function is incorrect, as it allows collisions.'
                     logger.debug(event_message)
                     self.event_store.store_error(self.rule_event_id, message, event_message)
 
@@ -110,7 +111,7 @@ class Rule:
         else:
             self.event_store.store_matched(self.rule_event_id, check_event)
 
-    def logging_event(self, routing_key: str, hash_of_message: str, message: infra_pb2.Message):
+    def logging_event(self, routing_key: str, hash_of_message: str, message: common_pb2.Message):
         event_message = f"Received '{message.metadata.message_type}' from '{routing_key}'. Hash: {hash_of_message}"
         event_message += self.hashed_fields_values_to_string(message, " ")
         logger.debug(f"RULE '{self.get_name()}': {event_message}")

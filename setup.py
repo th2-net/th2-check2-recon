@@ -12,25 +12,42 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import os
+import json
 
 from setuptools import setup, find_packages
 
+
+def get_dependency(dependency_name, dependency_version,
+                   dependency_repository='https://nexus.exactpro.com/repository/th2-pypi/packages/'):
+    return f"{dependency_name} @ {dependency_repository}{dependency_name}/{dependency_version}/" \
+           f"{dependency_name.replace('-', '_')}-{dependency_version}.tar.gz"
+
+
+with open('package_info.json', 'r') as file:
+    package_info = json.load(file)
+
+package_name = package_info['package_name'].replace('-', '_')
+package_version = package_info['package_version']
+
+with open('README.md', 'r') as file:
+    long_description = file.read()
+
+
 setup(
-    name='th2-recon',
-    version=f"1.1.59",
-    packages=find_packages(include=['th2recon', 'th2recon.*']),
-    install_requires=[
-        'pika==1.1.0',
-        'grpcio==1.27.2',
-        'google-api-core==1.22.0',
-        'PyYAML==5.3.1'
-    ],
-    url='https://gitlab.exactpro.com/vivarium/th2/th2-core-open-source/th2-recon/',
-    license='Apache License 2.0',
+    name=package_name,
+    version=package_version,
+    description=package_name,
+    long_description=long_description,
     author='TH2-devs',
-    python_requires='>=3.7',
     author_email='th2-devs@exactprosystems.com',
-    description='TH2-recon core project',
-    long_description=open('README.md').read(),
+    url='https://gitlab.exactpro.com/vivarium/th2/th2-core-open-source/th2-check2-recon',
+    license='Apache License 2.0',
+    python_requires='>=3.7',
+    install_requires=[
+        get_dependency(dependency_name='th2-common', dependency_version='2.0.8'),
+        get_dependency(dependency_name='grpc-estore', dependency_version='2.1.2'),
+        get_dependency(dependency_name='grpc-util', dependency_version='2.1.0')
+    ],
+    packages=[''] + find_packages(include=['th2_check2_recon', 'th2_check2_recon.*']),
+    package_data={'': ['package_info.json']}
 )

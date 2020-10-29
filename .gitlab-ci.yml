@@ -1,27 +1,24 @@
-image: python:3.8-slim
+variables:
+  APP_NAME: 'th2-check2-recon'
+  MAJOR_VERSION: '2'
+  MINOR_VERSION: '0'
+  MAINTENANCE_VERSION: '0'
+  DOCKER_PUBLISH_ENABLED: 'false'
 
-stages:
-  - meta
-  - deploy
+include:
+  - project: 'vivarium/th2/pipelines'
+    ref: master
+    file: '/.gitlab-ci-common.yml'
 
-getGitMeta:
-  image:
-    name: alpine/git:v2.26.2
-    entrypoint: [""]
-  stage: meta
-  script:
-    - echo "REVISION=$(git rev-list --count HEAD)" >> meta.env
-  artifacts:
-    reports:
-      dotenv: meta.env
-
-
-pypi_publish:
-  stage: deploy
+build:
+  extends: .build-template
+  variables:
+    DOCKER_INTERMEDIATE_TAG: "${CI_COMMIT_SHA}"
+    DOCKER_BUILD_ARGS: >-
+      --build-arg pypi_repository_url=${PYPI_REPOSITORY_URL}
+      --build-arg pypi_user=${PYPI_USER}
+      --build-arg pypi_password=${PYPI_PASSWORD}
+      --build-arg app_name=${APP_NAME}
+      --build-arg app_version=${APP_VERSION}
   dependencies:
-    - getGitMeta
-  script:
-    - echo $REVISION
-    - pip install -U twine
-    - python setup.py sdist
-    - twine upload --repository-url $PYPI_REPOSITORY_URL --username $PYPI_USER --password $PYPI_PASSWORD dist/*
+    - makeMetaEnv
