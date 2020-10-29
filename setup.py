@@ -15,10 +15,11 @@
 import os
 
 from setuptools import setup, find_packages
+from os import environ
 
 setup(
-    name='th2-recon',
-    version=f"1.1.59",
+    name=environ['APP_NAME'] if 'APP_NAME' in environ else 'th2-recon',
+    version=environ['APP_VERSION'] if 'APP_VERSION' in environ else "1.1.59",
     packages=find_packages(include=['th2recon', 'th2recon.*']),
     install_requires=[
         'pika==1.1.0',
