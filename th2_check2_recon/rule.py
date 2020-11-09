@@ -13,29 +13,51 @@
 # limitations under the License.
 
 import logging
+import traceback
 from abc import abstractmethod
-from concurrent.futures.thread import ThreadPoolExecutor
 
-from grpc_common import common_pb2
+from th2_common.schema.message.message_listener import MessageListener
+from th2_grpc_common.common_pb2 import Event, Message, MessageBatch
 
-from th2_check2_recon import store, comparator, services
+from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils
+from th2_check2_recon.reconcommon import ReconMessage
+from th2_check2_recon.services import EventStore, MessageComparator, Cache
 
 logger = logging.getLogger()
 
-IGNORED_HASH = 'ignored'
+
+class MessageHandler(MessageListener):
+
+    def __init__(self, rule) -> None:
+        self.__rule = rule
+
+    def handler(self, attributes: tuple, message_batch: MessageBatch):
+        try:
+            for message in message_batch.messages:
+                self.__rule.process(message, attributes)
+            logger.info(f"  Cache size '{self.__rule.get_name()}': {self.__rule.log_groups_size()}.")
+        except Exception:
+            logger.exception(f"An error occurred while processing the received message. Body: {message_batch}")
 
 
 class Rule:
-    def __init__(self, event_store: store.Store, routing_keys: list, cache_size: int, time_interval: int,
-                 message_comparator: comparator.Comparator, enabled: bool, configuration) -> None:
+
+    def __init__(self, event_store: EventStore, message_comparator: MessageComparator,
+                 cache_size: int, match_timeout: int, configuration) -> None:
+        logger.info(f"Rule {self.get_name()} initializing...")
         self.event_store = event_store
-        self.routing_keys = routing_keys
-        self.rule_event_id = store.new_event_id()
-        self.event_store.create_event_groups(self.rule_event_id, self.get_name(), self.get_description())
-        self.cache = services.Cache(cache_size, time_interval, routing_keys, event_store, self.rule_event_id)
-        self.comparator = message_comparator
-        self.enabled = enabled
+        self.message_comparator = message_comparator
+        self.match_timeout = match_timeout
         self.configure(configuration)
+
+        self.rule_event: Event = \
+            EventUtils.create_event(name=self.get_name(),
+                                    parent_id=event_store.root_event.id,
+                                    body=EventUtils.create_event_body(MessageComponent(message=self.get_description())))
+        self.event_store.send_event_out_batch(self.rule_event)
+
+        self.__cache = Cache(self.description_of_groups(), cache_size, event_store, self.rule_event)
+        logger.info(f"Rule {self.get_name()} initialized")
 
     @abstractmethod
     def get_name(self) -> str:
@@ -46,72 +68,144 @@ class Rule:
         pass
 
     @abstractmethod
-    def hash(self, message: common_pb2.Message) -> str:
+    def get_attributes(self) -> [list]:
         pass
 
     @abstractmethod
-    def check(self, messages_by_routing_key: dict) -> common_pb2.Event:
+    def description_of_groups(self) -> dict:
+        """
+            Return dictionary whose key is 'group_id', and value is 'type'.
+            Type can be MessageGroupType.single or MessageGroupType.multi .
+        """
         pass
 
     @abstractmethod
+    def group(self, message: ReconMessage, attributes: tuple):
+        pass
+
+    @abstractmethod
+    def hash(self, message: ReconMessage, attributes: tuple):
+        pass
+
+    @abstractmethod
+    def check(self, messages: [ReconMessage]) -> Event:
+        pass
+
     def configure(self, configuration):
         pass
 
-    def hashed_fields(self) -> list:
-        pass
+    def get_listener(self) -> MessageListener:
+        return MessageHandler(self)
 
-    def hashed_fields_values_to_string(self, message: common_pb2.Message, separator: str) -> str:
-        """
+    def process(self, proto_message: Message, attributes: tuple):
+        message = ReconMessage(proto_message=proto_message)
+        self.check_no_match_within_timeout(MessageUtils.get_timestamp_ns(proto_message))
 
-        :return: String in format "{separator}{field_name}: '{field_simple_value}'"
-        """
-        result = ""
-        for field_name in self.hashed_fields():
-            result += separator
-            result += f"{field_name}: '{message.fields[field_name].simple_value}'"
-        return result
-
-    def process(self, message: common_pb2.Message, routing_key: str, executor: ThreadPoolExecutor):
-        hash_of_message = self.hash(message)
-        if hash_of_message == IGNORED_HASH:
+        self.group(message, attributes)
+        if message.group_id is None:
+            logger.info(f"RULE '{self.get_name()}': Ignored  {message.get_all_info()}")
             return
-        matched_messages = {routing_key: message}
-        for key in self.routing_keys:
-            if self.cache.contains(hash_of_message, key):
-                if key != routing_key:
-                    matched_messages[key] = self.cache.get(key, hash_of_message)
-                else:
-                    event_message = \
-                        f'The message with the hash={hash_of_message} already contains in cache of {key}. ' \
-                        f'The implementation of the hash function is incorrect, as it allows collisions.'
-                    logger.debug(event_message)
-                    self.event_store.store_error(self.rule_event_id, message, event_message)
 
-        if len(matched_messages) == len(self.routing_keys):
-            self.cache.put(routing_key, hash_of_message, message, self.hashed_fields_values_to_string(message, ". "))
-            self.cache.remove_matched(hash_of_message, matched_messages)
-            executor.submit(self.logging_event, routing_key, hash_of_message, message)
-            executor.submit(self.check_and_store_event, matched_messages)
+        self.hash(message, attributes)
+
+        index_of_main_group = self.__cache.index_of_group(message.group_id)
+        if index_of_main_group == -1:
+            logger.info(f"RULE '{self.get_name()}': Ignored because group '{message.group_id}' don't exist. "
+                        f"{message.get_all_info()}")
+            return
         else:
-            self.cache.put(routing_key, hash_of_message, message, self.hashed_fields_values_to_string(message, ". "))
-            executor.submit(self.logging_event, routing_key, hash_of_message, message)
+            logger.info(f"RULE '{self.get_name()}': Received {message.get_all_info()}")
 
-    def check_and_store_event(self, messages_by_key: dict):
-        check_event = self.check(messages_by_key)
-        max_timestamp = -1
-        min_timestamp = -1
-        for message in messages_by_key.values():
-            timestamp_seconds = message.metadata.timestamp.seconds
-            max_timestamp = max(timestamp_seconds, max_timestamp)
-            if timestamp_seconds < min_timestamp or min_timestamp == -1:
-                min_timestamp = timestamp_seconds
-        if max_timestamp - min_timestamp > self.cache.time_interval:
-            self.event_store.store_matched_out_of_timeout(self.rule_event_id, check_event, self.cache.min_time,
-                                                          self.cache.min_time + self.cache.time_interval)
+        group_indices = []
+        group_sizes = []
+
+        for index_of_compared_group in range(len(self.__cache.message_groups)):
+            if index_of_compared_group == index_of_main_group:
+                continue
+            compared_group: Cache.MessageGroup = self.__cache.message_groups[index_of_compared_group]
+            if not compared_group.contains(message.hash):
+                break
+            group_indices.append(0)
+            group_sizes.append(len(compared_group.get(message.hash)))
+
+        if len(group_indices) != len(self.__cache.message_groups) - 1:
+            self.__cache.message_groups[index_of_main_group].put(message)
+            return
+
+        group_indices[-1] = -1
+        while self.__increment_indices(group_sizes, group_indices):
+            matched_messages = [message]
+            for i in range(len(group_indices)):
+                index_of_compared_group = i if i < index_of_main_group else i + 1
+                matched_messages.append(
+                    self.__cache.message_groups[index_of_compared_group].data[message.hash][group_indices[i]])
+            self.__check_and_store_event(matched_messages)
+
+        self.__cache.message_groups[index_of_main_group].put(message)
+        for group in self.__cache.message_groups:
+            if group.is_cleanable:
+                group.remove(message.hash)
+
+    def __check_and_store_event(self, matched_messages: list):
+        for msg in matched_messages:
+            msg.is_matched = True
+        try:
+            check_event: Event = self.check(matched_messages)
+        except Exception:
+            logger.exception(f"RULE '{self.get_name()}': An exception was caught while running 'check'")
+            self.event_store.store_error(rule_event_id=self.rule_event.id,
+                                         event_name="An exception was caught while running 'check'",
+                                         error_message=traceback.format_exc(),
+                                         messages=matched_messages)
+            return
+
+        if check_event is None:
+            return
+
+        max_timestamp_msg = max(matched_messages, key=lambda m: MessageUtils.get_timestamp_ns(m.proto_message))
+        min_timestamp_msg = min(matched_messages, key=lambda m: MessageUtils.get_timestamp_ns(m.proto_message))
+
+        max_timestamp = MessageUtils.get_timestamp_ns(max_timestamp_msg.proto_message)
+        min_timestamp = MessageUtils.get_timestamp_ns(min_timestamp_msg.proto_message)
+
+        if max_timestamp - min_timestamp > self.match_timeout:
+            self.event_store.store_matched_out_of_timeout(rule_event_id=self.rule_event.id,
+                                                          check_event=check_event,
+                                                          min_time=min_timestamp,
+                                                          max_time=max_timestamp)
         else:
-            self.event_store.store_matched(self.rule_event_id, check_event)
+            self.event_store.store_matched(rule_event_id=self.rule_event.id,
+                                           check_event=check_event)
 
-    def logging_event(self, routing_key: str, hash_of_message: str, message: common_pb2.Message):
-        event_message = f"Received '{message.metadata.message_type}' from '{routing_key}'. Hash: {hash_of_message}"
-        event_message += self.hashed_fields_values_to_string(message, " ")
-        logger.debug(f"RULE '{self.get_name()}': {event_message}")
+    def log_groups_size(self):
+        res = ""
+        for group in self.__cache.message_groups:
+            res += f"'{group.id}': {group.size} msg, "
+        res = "[" + res.strip(" ,") + "]"
+        return res
+
+    def cache_size(self):
+        res = 0
+        for group in self.__cache.message_groups:
+            res += group.size
+        return res
+
+    def check_no_match_within_timeout(self, actual_time: int):
+        for group in self.__cache.message_groups:
+            group.check_no_match_within_timeout(actual_time, self.match_timeout)
+
+    def stop(self):
+        self.__cache.stop()
+
+    @staticmethod
+    def __increment_indices(sizes: list, indices: list) -> bool:
+        indices[-1] += 1
+        for i in range(len(sizes) - 1, -1, -1):
+            if indices[i] == sizes[i]:
+                if i == 0:
+                    return False
+                indices[i] = 0
+                indices[i - 1] += 1
+            else:
+                break
+        return True

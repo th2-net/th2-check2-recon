@@ -13,11 +13,7 @@
 # limitations under the License.
 
 
-grpcio-tools==1.33.1
-google-api-core==1.23.0
-PyYAML==5.3.1
-twine==3.2.0
+sortedcollections==1.2.1
 --extra-index-url https://nexus.exactpro.com/repository/th2-pypi/simple/
-grpc-common==2.1.7
-grpc-estore==2.1.2
-grpc-util==2.1.0
+th2-grpc-util==2.2.2
+th2-common==2.1.5

@@ -13,196 +13,345 @@
 # limitations under the License.
 
 import logging
-import queue
-from concurrent.futures.thread import ThreadPoolExecutor
-from threading import Thread
+from abc import ABC, abstractmethod
+from threading import Lock, Timer
 
-from grpc_common import common_pb2
+import sortedcollections
+from th2_common.schema.event.event_batch_router import EventBatchRouter
+from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, Message
+from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
+    CompareMessageVsMessageTask, CompareMessageVsMessageResult
 
-from th2_check2_recon import store
+from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils
+from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
 
 logger = logging.getLogger()
 
 
-class QueueListener:
+class AbstractService(ABC):
 
-    def __init__(self, routing_key: str, cache_size: int, channel, timeout, index: int) -> None:
-        self.queue = channel.queue_declare(queue='',
-                                           exclusive=True)
-        self.queue_name = self.queue.method.queue
-        self.routing_key = routing_key
-        self.buffer = queue.Queue(cache_size)
+    @abstractmethod
+    def stop(self):
+        pass
+
+
+class EventsBatchCollector(AbstractService):
+
+    def __init__(self, event_router, max_batch_size: int, timeout: int) -> None:
+        self.max_batch_size = max_batch_size
         self.timeout = timeout
-        self.index = index
 
+        self.__batches = {}
+        self.__lock = Lock()
+        self.__event_router = event_router
 
-def log_table_messages(messages, col_size):
-    result = ''
-    field_names = []
-    for message in messages:
-        for field_name in message.fields.keys():
-            field_names.append(field_name)
-
-    result += '\n|' + 'message_type'.ljust(col_size, ' ') + '|'
-    for message in messages:
-        result += message.metadata.message_type.ljust(col_size, ' ') + '|'
-
-    result += '\n|' + 'id'.ljust(col_size, ' ') + '|'
-    for message in messages:
-        result += str(message.metadata.id.sequence).ljust(col_size, ' ') + '|'
-
-    result += '\n|' + 'timestamp'.ljust(col_size, ' ') + '|'
-    for message in messages:
-        result += str(message.metadata.timestamp.seconds).ljust(col_size, ' ') + '|'
-
-    result += '\n' + '-' * ((len(messages) + 1) * col_size + len(messages) + 2)
-    for field_name in field_names:
-        result += '\n|' + field_name.ljust(col_size, ' ') + '|'
-        for message in messages:
-            value: common_pb2.Value = message.fields[field_name]
-            if len(value.simple_value) > 0:
-                field_value = value.simple_value
+    def put_event(self, event: Event):
+        with self.__lock:
+            if event.parent_id.id in self.__batches:
+                event_batch, batch_timer = self.__batches.get(event.parent_id.id)
             else:
-                if len(value.list_value.values) > 0:
-                    field_value = 'NOT_EMPTY_LIST'  # TODO fix
-                else:
-                    if len(value.message_value.fields) > 0:
-                        field_value = 'SUB_MESSAGE'  # TODO fix
-                    else:
-                        field_value = 'EMPTY'
-            result += field_value.ljust(col_size, ' ') + '|'
-    return result
-
-
-def log_result(indices, cache, queue_listeners):
-    col_size = 30
-    result = ''
-    for elem_idx in range(len(indices)):
-
-        result += '\n\n' + '*' * ((len(queue_listeners.values()) + 1) * col_size + len(queue_listeners.values()) + 2)
-        result += '\n|' + 'Field'.ljust(col_size, ' ') + '|'
-        for i in range(len(queue_listeners.values())):
-            key = ""
-            for queue_listener in queue_listeners.values():
-                if i == queue_listener.index:
-                    key = queue_listener.routing_key
-                    break
-            result += key.ljust(col_size, ' ') + '|'
-        result += '\n' + '*' * ((len(queue_listeners.values()) + 1) * col_size + len(queue_listeners.values()) + 2)
-
-        messages = []
-        for seq_idx in range(len(indices[elem_idx])):
-            messages.append(cache[seq_idx][indices[elem_idx][seq_idx]])
-        result += log_table_messages(messages, col_size)
-    logging.info(result)
-
-
-def get_timestamp(message: common_pb2.Message):
-    return message.metadata.timestamp.seconds * 1_000_000_000 + message.metadata.timestamp.nanos
-
-
-class Cache:
-
-    def __init__(self, cache_size: int, time_interval: int, routing_keys: list, event_store: store.Store,
-                 rule_event_id: common_pb2.EventID) -> None:
-        self.cache_size = cache_size
-        self.time_interval = time_interval * 1_000_000_000
-        self.min_time = 0
-        self.event_store = event_store
-        self.rule_event_id = rule_event_id
-        self.data = {key: dict() for key in routing_keys}
-        self.min_by_key = {key: set() for key in routing_keys}  # TODO fix search fast usable set for find minimum
-        self.hash_by_timestamp = {key: {} for key in routing_keys}  # TODO fix search fast usable set for find minimum
-
-    def contains(self, hash_of_message: str, routing_key: str) -> bool:
-        return self.data[routing_key].__contains__(hash_of_message)
-
-    def get(self, routing_key: str, hash_of_message: str) -> common_pb2.Message:
-        return self.data[routing_key][hash_of_message]
-
-    def remove_matched(self, hash_of_message: str, messages_by_routing_key: dict):
-        for key in messages_by_routing_key.keys():
-            self.remove(key, hash_of_message)
-
-    def put(self, routing_key: str, hash_of_message: str, message: common_pb2.Message, event_name_suffix: str):
-        if len(self.data[routing_key]) < self.cache_size:
-            if self.contains(hash_of_message, routing_key):
-                event_message = 'The message was deleted because a new message was received with the same hash.'
-                self.remove(routing_key, hash_of_message, event_message, event_name_suffix)
-                self.put(routing_key, hash_of_message, message, event_name_suffix)
+                event_batch = EventBatch(parent_event_id=event.parent_id)
+                batch_timer = self._create_timer(event_batch)
+                self.__batches[event.parent_id.id] = (event_batch, batch_timer)
+            event_batch.events.append(event)
+            if len(event_batch.events) == self.max_batch_size:
+                self.__batches.pop(event.parent_id.id)
+                batch_timer.cancel()
             else:
-                self.data[routing_key][hash_of_message] = message
-                self.min_by_key[routing_key].add(get_timestamp(message))
-                self.hash_by_timestamp[routing_key][get_timestamp(message)] = hash_of_message
-                self.min_time = max(self.min_time, get_timestamp(message) - self.time_interval)
-        else:
-            event_message = 'The message was deleted because there was no free space in the cache.'
-            hash_for_del = self.hash_by_timestamp[routing_key][min(self.min_by_key[routing_key])]
-            self.remove(routing_key, hash_for_del, event_message, event_name_suffix)
-            self.put(routing_key, hash_of_message, message, event_name_suffix)
+                return
 
-    def remove(self, routing_key: str, hash_of_message: str, event_message="", event_name_suffix=""):
-        message = self.data[routing_key][hash_of_message]
-        timestamp = get_timestamp(message)
-        if event_message != '':
-            event_name = f"Removed '{routing_key}': '{message.metadata.message_type}'"
-            event_name += event_name_suffix
-            self.event_store.store_no_match(self.rule_event_id, message, event_name, event_message)
+        self._send_batch(event_batch)
 
-        self.hash_by_timestamp[routing_key].pop(timestamp)
-        self.min_by_key[routing_key].remove(timestamp)
-        self.data[routing_key].pop(hash_of_message)
+    def _timer_handle(self, batch: EventBatch):
+        with self.__lock:
+            if batch.parent_event_id.id in self.__batches:
+                self.__batches.pop(batch.parent_event_id.id)
+            else:
+                return
 
-    def clear(self):
-        event_message = 'The message was deleted because the Recon stopped.'
-        for routing_key in self.data.keys():
-            while len(self.data[routing_key]) > 0:  # TODO fix it
-                for hash_of_message in self.data[routing_key].keys():
-                    self.remove(routing_key, hash_of_message, event_message)
-                    break
+        self._send_batch(batch)
 
+    def _send_batch(self, batch: EventBatch):
+        try:
+            self.__event_router.send_by_attr(batch, ['publish', 'event'])
+        except Exception:
+            logger.exception("Error while send StoreEventBatchRequest")
 
-class Recon:
-
-    def __init__(self, rules: list, queue_listeners: dict) -> None:
-        self.is_stopped = True
-        self.rules = rules
-        self.queue_listeners = queue_listeners
-
-    def start(self):
-        self.is_stopped = False
-        Thread(target=self.run, args=()).start()
+    def _create_timer(self, batch: EventBatch):
+        timer = Timer(self.timeout, self._timer_handle, [batch])
+        timer.start()
+        return timer
 
     def stop(self):
-        self.is_stopped = True
+        with self.__lock:
+            for id in self.__batches.keys():
+                event_batch, batch_timer = self.__batches[id]
+                batch_timer.cancel()
+        with self.__lock:
+            for id in self.__batches.keys():
+                event_batch, batch_timer = self.__batches[id]
+                self._send_batch(event_batch)
+            self.__batches.clear()
 
-    def run(self):
-        with ThreadPoolExecutor(20) as executor:
-            try:
-                while not self.is_stopped:
-                    some_not_empty = False
-                    for queue_listener in self.queue_listeners.values():
-                        if not queue_listener.buffer.empty():
-                            some_not_empty = True
-                            break
-                    for queue_listener in self.queue_listeners.values():
-                        if self.is_stopped:
-                            break
-                        timeout = 0 if some_not_empty else queue_listener.timeout
-                        try:
-                            message = queue_listener.buffer.get(block=not some_not_empty,
-                                                                timeout=timeout)
-                            for rule in self.rules:
-                                rule.process(message, queue_listener.routing_key, executor)
-                        except queue.Empty:
-                            if not some_not_empty:
-                                logger.debug(
-                                    f'{queue_listener.routing_key}: no messages '
-                                    f'from buffer within {queue_listener.timeout} sec')
-                        except Exception as e:
-                            logger.error(e)
 
-                for rule in self.rules:
-                    rule.cache.clear()
-            except Exception as e:
-                logger.error('service.run(): ', e)
+class EventStore(AbstractService):
+    MATCHED_FAILED = "Matched failed"
+    MATCHED_PASSED = "Matched passed"
+    MATCHED_OUT_OF_TIMEOUT = "Matched out of timeout"
+    NO_MATCH_WITHIN_TIMEOUT = "No match within timeout"
+    NO_MATCH = "No match"
+    ERRORS = "Errors"
+
+    def __init__(self, event_router: EventBatchRouter, report_name: str, event_batch_max_size: int,
+                 event_batch_send_interval: int) -> None:
+        self.event_router = event_router
+        self.__events_batch_collector = EventsBatchCollector(event_router, event_batch_max_size,
+                                                             event_batch_send_interval)
+        self.__group_event_by_rule_id = dict()
+
+        self.root_event: Event = EventUtils.create_event(name='Recon_' + report_name)
+        self.send_event_out_batch(self.root_event)
+
+    def send_event(self, event: Event, rule_event_id: EventID, group_event_name: str):
+        if not self.__group_event_by_rule_id.__contains__(rule_event_id.id):
+            self.__group_event_by_rule_id[rule_event_id.id] = dict()
+        if not self.__group_event_by_rule_id[rule_event_id.id].__contains__(group_event_name):
+            group_event = EventUtils.create_event(parent_id=rule_event_id,
+                                                  name=group_event_name)
+            self.__group_event_by_rule_id[rule_event_id.id][group_event_name] = group_event
+            self.send_event_out_batch(group_event)
+
+        group_event = self.__group_event_by_rule_id[rule_event_id.id][group_event_name]
+        event.id.CopyFrom(EventUtils.new_event_id())
+        event.parent_id.CopyFrom(group_event.id)
+        self.__events_batch_collector.put_event(event)
+
+    def send_event_out_batch(self, event: Event):
+        try:
+            self.event_router.send_by_attr(event, ['publish', 'event'])
+        except Exception:
+            logger.exception("Error while send StoreEventRequest")
+
+    def store_no_match_within_timeout(self, rule_event_id: EventID, recon_message: ReconMessage,
+                                      actual_timestamp: int, timeout: int):
+        name = f"{recon_message.get_all_info()}"
+        message_timestamp = MessageUtils.get_timestamp_ns(recon_message.proto_message)
+
+        units = ['sec', 'ms', 'mcs', 'ns']
+        factor_units = [1_000_000_000, 1_000_000, 1_000, 1]
+        units_idx = 0
+        while actual_timestamp % factor_units[units_idx] != 0 \
+                or message_timestamp % factor_units[units_idx] != 0 \
+                or timeout % factor_units[units_idx] != 0:
+            units_idx += 1
+
+        unit = units[units_idx]
+        actual_timestamp = int(actual_timestamp / factor_units[units_idx])
+        message_timestamp = int(message_timestamp / factor_units[units_idx])
+        timeout = int(timeout / factor_units[units_idx])
+
+        event_message = f"Timestamp of the last received message: '{actual_timestamp:,}' {unit}\n" \
+                        f"Timestamp this message: '{message_timestamp:,}' {unit}\n" \
+                        f"Timeout: '{timeout:,}' {unit}"
+        body = EventUtils.create_event_body(MessageComponent(event_message))
+        attached_message_ids = [recon_message.proto_message.metadata.id]
+        event = EventUtils.create_event(name=name,
+                                        body=body,
+                                        attached_message_ids=attached_message_ids)
+        self.send_event(event, rule_event_id, self.NO_MATCH_WITHIN_TIMEOUT)
+
+    def store_no_match(self, rule_event_id: EventID, message: ReconMessage, event_message: str):
+        name = f"Remove '{message.proto_message.metadata.message_type}' {message.get_all_info()}"
+        event_message += f"\n Message {'not' if not message.is_matched else ''} matched"
+        body = EventUtils.create_event_body(MessageComponent(event_message))
+        attached_message_ids = [message.proto_message.metadata.id]
+        event = EventUtils.create_event(name=name,
+                                        body=body,
+                                        status=EventStatus.SUCCESS if message.is_matched else EventStatus.FAILED,
+                                        attached_message_ids=attached_message_ids)
+
+        self.send_event(event, rule_event_id, self.NO_MATCH)
+
+    def store_error(self, rule_event_id: EventID, event_name: str, error_message: str,
+                    messages: [ReconMessage] = None):
+        body = EventUtils.create_event_body(MessageComponent(error_message))
+        attached_message_ids = [message.proto_message.metadata.id for message in messages]
+        event = EventUtils.create_event(name=event_name,
+                                        status=EventStatus.FAILED,
+                                        attached_message_ids=attached_message_ids,
+                                        body=body)
+
+        self.send_event(event, rule_event_id, self.ERRORS)
+
+    def store_matched_out_of_timeout(self, rule_event_id: EventID, check_event: Event,
+                                     min_time, max_time):
+        self.send_event(check_event, rule_event_id, self.MATCHED_OUT_OF_TIMEOUT)
+
+    def store_matched(self, rule_event_id: EventID, check_event: Event):
+        if check_event.status == EventStatus.SUCCESS:
+            self.send_event(check_event, rule_event_id, self.MATCHED_PASSED)
+        else:
+            self.send_event(check_event, rule_event_id, self.MATCHED_FAILED)
+
+    def stop(self):
+        self.__events_batch_collector.stop()
+
+
+class MessageComparator(AbstractService):
+
+    def __init__(self, comparator_service) -> None:
+        self.__comparator_service = comparator_service
+
+    def compare(self, expected: Message, actual: Message,
+                settings: ComparisonSettings) -> CompareMessageVsMessageResult:
+        return self.comparing(expected, actual, settings)
+
+    def comparing(self, expected: Message, actual: Message,
+                  settings: ComparisonSettings) -> CompareMessageVsMessageResult:
+        request = CompareMessageVsMessageRequest(
+            comparison_tasks=[CompareMessageVsMessageTask(first=expected, second=actual,
+                                                          settings=settings)])
+        try:
+            compare_response = self.__comparator_service.compareMessageVsMessage(request)
+            for compare_result in compare_response.comparison_results:  # TODO  fix it
+                return compare_result
+        except Exception:
+            logger.exception(f"Error while comparing. CompareMessageVsMessageRequest: {request}")
+
+    def stop(self):
+        pass
+
+
+class Cache(AbstractService):
+
+    def __init__(self, message_group_types: dict, cache_size: int, event_store: EventStore,
+                 rule_event: Event) -> None:
+        self.capacity = cache_size
+        self.event_store = event_store
+        self.rule_event = rule_event
+
+        self.message_groups = [Cache.MessageGroup(id=message_group_id,
+                                                  capacity=cache_size,
+                                                  type=message_group_types[message_group_id],
+                                                  event_store=event_store,
+                                                  rule_event=self.rule_event)
+                               for message_group_id in message_group_types.keys()]
+        multi_cnt = 0
+        for group in self.message_groups:
+            if group.type == MessageGroupType.multi:
+                multi_cnt += 1
+
+        for group in self.message_groups:
+            if multi_cnt == 1:
+                if group.type == MessageGroupType.single:
+                    group.is_cleanable = False
+            elif multi_cnt > 1:
+                group.is_cleanable = False
+
+    def index_of_group(self, group_id: str) -> int:
+        for i in range(len(self.message_groups)):
+            if self.message_groups[i].id == group_id:
+                return i
+        return -1
+
+    def stop(self):
+        for group in self.message_groups:
+            group.clear()
+
+    class MessageGroup:
+
+        def __init__(self, id: str, capacity: int, type: MessageGroupType, event_store: EventStore,
+                     rule_event: Event) -> None:
+            self.id = id
+            self.capacity = capacity
+            self.size = 0
+            self.type = type
+            self.event_store = event_store
+            self.rule_event = rule_event
+
+            self.is_cleanable = True
+            self.data = dict()
+            self.hash_by_sorted_timestamp = sortedcollections.SortedDict()
+
+        def put(self, message: ReconMessage):
+            if self.size < self.capacity:
+                if self.contains(message.hash) and self.type == MessageGroupType.single:
+                    cause = f"The message was deleted because a new one came with the same hash '{message.hash}' " \
+                            f"in message group '{self.id}'"
+                    self.remove(message.hash, cause)
+
+                if not self.data.__contains__(message.hash):
+                    self.data[message.hash] = list()
+                self.data[message.hash].append(message)
+
+                timestamp = MessageUtils.get_timestamp_ns(message.proto_message)
+                if not self.hash_by_sorted_timestamp.__contains__(timestamp):
+                    self.hash_by_sorted_timestamp[timestamp] = list()
+                self.hash_by_sorted_timestamp[timestamp].append(message.hash)
+
+                self.size += 1
+            else:
+                timestamp_for_remove = self.hash_by_sorted_timestamp.keys().__iter__().__next__()
+                hash_for_remove = self.hash_by_sorted_timestamp[timestamp_for_remove].__iter__().__next__()
+                cause = f"The message was deleted because there was no free space in the message group '{self.id}'"
+                self.remove(hash_for_remove, cause, remove_all=False)
+                self.put(message)
+
+        def get(self, hash_of_message: int) -> list:
+            return self.data[hash_of_message]
+
+        def contains(self, hash_of_message: int) -> bool:
+            return self.data.__contains__(hash_of_message)
+
+        def check_no_match_within_timeout(self, actual_timestamp: int, timeout: int):
+            lower_bound_timestamp = actual_timestamp - timeout
+            old_timestamps = []
+            if lower_bound_timestamp is None:
+                old_timestamps.append(self.hash_by_sorted_timestamp.keys().__iter__().__next__())
+            else:
+                for timestamp in self.hash_by_sorted_timestamp.keys():
+                    if timestamp < lower_bound_timestamp:
+                        old_timestamps.append(timestamp)
+            for old_timestamp in old_timestamps:
+                old_hash = self.hash_by_sorted_timestamp[old_timestamp].__iter__().__next__()
+                for recon_message in self.data[old_hash]:
+                    if not recon_message.is_matched and not recon_message.is_check_no_match_within_timeout:
+                        recon_message.is_check_no_match_within_timeout = True
+                        self.event_store.store_no_match_within_timeout(self.rule_event.id, recon_message,
+                                                                       actual_timestamp, timeout)
+
+        def remove(self, hash_of_message: int, cause="", remove_all=True):
+            message_for_remove = None
+            if remove_all:
+                for message in self.data[hash_of_message]:
+                    message_for_remove: ReconMessage = message
+                    timestamp_for_remove = MessageUtils.get_timestamp_ns(message_for_remove.proto_message)
+                    self.hash_by_sorted_timestamp[timestamp_for_remove].remove(hash_of_message)
+                    if len(self.hash_by_sorted_timestamp[timestamp_for_remove]) == 0:
+                        self.hash_by_sorted_timestamp.pop(timestamp_for_remove)
+                    self.size -= 1
+                self.data.pop(hash_of_message)
+            else:
+                message_for_remove: ReconMessage = self.data[hash_of_message].__iter__().__next__()
+                timestamp_for_remove = MessageUtils.get_timestamp_ns(message_for_remove.proto_message)
+
+                self.data[hash_of_message].remove(message_for_remove)
+                if len(self.data[hash_of_message]) == 0:
+                    self.data.pop(hash_of_message)
+
+                self.hash_by_sorted_timestamp[timestamp_for_remove].remove(hash_of_message)
+                if len(self.hash_by_sorted_timestamp[timestamp_for_remove]) == 0:
+                    self.hash_by_sorted_timestamp.pop(timestamp_for_remove)
+                self.size -= 1
+
+            if len(cause) != 0:
+                self.event_store.store_no_match(rule_event_id=self.rule_event.id,
+                                                message=message_for_remove,
+                                                event_message=cause)
+
+        def clear(self):
+            cause = "The message was deleted because the Recon stopped"
+            while len(self.data) != 0:
+                hash_for_remove = self.data.keys().__iter__().__next__()
+                while self.data.__contains__(hash_for_remove) and len(self.data[hash_for_remove]) != 0:
+                    self.remove(hash_for_remove, cause, remove_all=False)

@@ -14,8 +14,7 @@
 
 import json
 
-from setuptools import setup, find_packages
-from os import environ
+from setuptools import setup
 
 
 def get_dependency(dependency_name, dependency_version,
@@ -33,7 +32,6 @@ package_version = package_info['package_version']
 with open('README.md', 'r') as file:
     long_description = file.read()
 
-
 setup(
     name=package_name,
     version=package_version,
@@ -41,14 +39,14 @@ setup(
     long_description=long_description,
     author='TH2-devs',
     author_email='th2-devs@exactprosystems.com',
-    url='https://gitlab.exactpro.com/vivarium/th2/th2-core-open-source/th2-check2-recon',
+    url='https://gitlab.exactpro.com/vivarium/th2/th2-core-open-source/th2-grpc-sim-template',
     license='Apache License 2.0',
     python_requires='>=3.7',
     install_requires=[
-        get_dependency(dependency_name='th2-common', dependency_version='2.0.8'),
-        get_dependency(dependency_name='grpc-estore', dependency_version='2.1.2'),
-        get_dependency(dependency_name='grpc-util', dependency_version='2.1.0')
+        'sortedcollections==1.2.1',
+        get_dependency(dependency_name='th2-grpc-util', dependency_version='2.2.2'),
+        get_dependency(dependency_name='th2-common', dependency_version='2.1.5')
     ],
-    packages=[''] + find_packages(include=['th2_check2_recon', 'th2_check2_recon.*']),
-    package_data={'': ['package_info.json']}
+    packages=['', package_name],
+    package_data={'': ['package_info.json'], package_name: ['*.proto']}
 )
