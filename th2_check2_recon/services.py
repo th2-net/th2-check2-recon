@@ -110,7 +110,7 @@ class EventStore(AbstractService):
         self.__group_event_by_rule_id = dict()
 
         self.root_event: Event = EventUtils.create_event(name='Recon_' + report_name)
-        self.send_event_out_batch(self.root_event)
+        self.send_parent_event(self.root_event)
 
     def send_event(self, event: Event, rule_event_id: EventID, group_event_name: str):
         if not self.__group_event_by_rule_id.__contains__(rule_event_id.id):
@@ -119,18 +119,15 @@ class EventStore(AbstractService):
             group_event = EventUtils.create_event(parent_id=rule_event_id,
                                                   name=group_event_name)
             self.__group_event_by_rule_id[rule_event_id.id][group_event_name] = group_event
-            self.send_event_out_batch(group_event)
+            self.send_parent_event(group_event)
 
         group_event = self.__group_event_by_rule_id[rule_event_id.id][group_event_name]
         event.id.CopyFrom(EventUtils.new_event_id())
         event.parent_id.CopyFrom(group_event.id)
         self.__events_batch_collector.put_event(event)
 
-    def send_event_out_batch(self, event: Event):
-        try:
-            self.event_router.send_by_attr(event, ['publish', 'event'])
-        except Exception:
-            logger.exception("Error while send StoreEventRequest")
+    def send_parent_event(self, event: Event):
+        self.__events_batch_collector.put_event(event)
 
     def store_no_match_within_timeout(self, rule_event_id: EventID, recon_message: ReconMessage,
                                       actual_timestamp: int, timeout: int):

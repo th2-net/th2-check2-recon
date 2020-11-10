@@ -54,7 +54,7 @@ class Rule:
             EventUtils.create_event(name=self.get_name(),
                                     parent_id=event_store.root_event.id,
                                     body=EventUtils.create_event_body(MessageComponent(message=self.get_description())))
-        self.event_store.send_event_out_batch(self.rule_event)
+        self.event_store.send_parent_event(self.rule_event)
 
         self.__cache = Cache(self.description_of_groups(), cache_size, event_store, self.rule_event)
         logger.info(f"Rule {self.get_name()} initialized")
