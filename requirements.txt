@@ -17,4 +17,4 @@ sortedcollections==1.2.1
 twine==3.2.0
 --extra-index-url https://nexus.exactpro.com/repository/th2-pypi/simple/
 th2-grpc-util==2.2.2
-th2-common==2.1.5
+th2-common==2.1.4
