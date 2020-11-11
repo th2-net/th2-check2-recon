@@ -2,7 +2,7 @@ variables:
   APP_NAME: 'th2-check2-recon'
   MAJOR_VERSION: '2'
   MINOR_VERSION: '1'
-  MAINTENANCE_VERSION: '4-10'
+  MAINTENANCE_VERSION: '4-11'
   DOCKER_PUBLISH_ENABLED: 'false'
 
 include:
