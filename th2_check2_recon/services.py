@@ -50,11 +50,6 @@ class EventsBatchCollector(AbstractService):
             if event.parent_id.id in self.__batches:
                 event_batch, batch_timer = self.__batches.get(event.parent_id.id)
             else:
-                if not event.HasField('parent_id'):
-                    event_batch = EventBatch()
-                    event_batch.events.append(event)
-                    self._send_batch(event_batch)
-                    return
                 event_batch = EventBatch(parent_event_id=event.parent_id)
                 batch_timer = self._create_timer(event_batch)
                 self.__batches[event.parent_id.id] = (event_batch, batch_timer)
@@ -132,7 +127,9 @@ class EventStore(AbstractService):
         self.__events_batch_collector.put_event(event)
 
     def send_parent_event(self, event: Event):
-        self.__events_batch_collector.put_event(event)
+        event_batch = EventBatch(parent_event_id=event.parent_id) if event.HasField('parent_id') else EventBatch()
+        event_batch.events.append(event)
+        self.event_router.send_by_attr(event_batch, ['publish', 'event'])
 
     def store_no_match_within_timeout(self, rule_event_id: EventID, recon_message: ReconMessage,
                                       actual_timestamp: int, timeout: int):
