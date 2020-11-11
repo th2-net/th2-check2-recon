@@ -50,7 +50,7 @@ class EventsBatchCollector(AbstractService):
             if event.parent_id.id in self.__batches:
                 event_batch, batch_timer = self.__batches.get(event.parent_id.id)
             else:
-                if event.parent_id is None:
+                if event.parent_id.id is None:
                     event_batch = EventBatch()
                     event_batch.events.append(event)
                     self._send_batch(event_batch)
