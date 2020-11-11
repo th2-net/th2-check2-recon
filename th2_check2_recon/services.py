@@ -50,6 +50,11 @@ class EventsBatchCollector(AbstractService):
             if event.parent_id.id in self.__batches:
                 event_batch, batch_timer = self.__batches.get(event.parent_id.id)
             else:
+                if event.parent_id is None:
+                    event_batch = EventBatch()
+                    event_batch.events.append(event)
+                    self._send_batch(event_batch)
+                    return
                 event_batch = EventBatch(parent_event_id=event.parent_id)
                 batch_timer = self._create_timer(event_batch)
                 self.__batches[event.parent_id.id] = (event_batch, batch_timer)
@@ -75,7 +80,7 @@ class EventsBatchCollector(AbstractService):
         try:
             self.__event_router.send_by_attr(batch, ['publish', 'event'])
         except Exception:
-            logger.exception("Error while send StoreEventBatchRequest")
+            logger.exception("Error while send EventBatch")
 
     def _create_timer(self, batch: EventBatch):
         timer = Timer(self.timeout, self._timer_handle, [batch])
