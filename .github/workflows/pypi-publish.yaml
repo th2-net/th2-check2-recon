@@ -2,8 +2,8 @@ name: Build and publish Python distributions to PyPI
 
 on:
   push:
-    # branches:
-    # - master
+    branches:
+    - master
     # paths:
     # - package_info.json
 
@@ -21,15 +21,15 @@ jobs:
       run: |
         pip install -r requirements.txt
         python setup.py sdist
-    - name: Publish distribution to Test PyPI
-      uses: pypa/gh-action-pypi-publish@master
-      with:
-        user: __token__
-        password: ${{ secrets.TEST_PYPI_PASSWORD }}
-        repository_url: https://test.pypi.org/legacy/
-    # - name: Publish distribution to PyPI
+    # - name: Publish distribution to Test PyPI
     #   uses: pypa/gh-action-pypi-publish@master
     #   with:
     #     user: __token__
-    #     password: ${{ secrets.PYPI_PASSWORD }}
-    #     repository_url: https://upload.pypi.org/legacy/
+    #     password: ${{ secrets.TEST_PYPI_PASSWORD }}
+    #     repository_url: https://test.pypi.org/legacy/
+    - name: Publish distribution to PyPI
+      uses: pypa/gh-action-pypi-publish@master
+      with:
+        user: __token__
+        password: ${{ secrets.PYPI_PASSWORD }}
+        repository_url: https://upload.pypi.org/legacy/
