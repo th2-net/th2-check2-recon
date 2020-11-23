@@ -132,7 +132,7 @@ class EventStore(AbstractService):
     def send_parent_event(self, event: Event):
         event_batch = EventBatch(parent_event_id=event.parent_id) if event.HasField('parent_id') else EventBatch()
         event_batch.events.append(event)
-        self.event_router.send_by_attr(event_batch, ['publish', 'event'])
+        self.event_router.send(event_batch)
 
     def store_no_match_within_timeout(self, rule_event_id: EventID, recon_message: ReconMessage,
                                       actual_timestamp: int, timeout: int):
