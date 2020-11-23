@@ -16,13 +16,6 @@ import json
 
 from setuptools import setup, find_packages
 
-
-def get_dependency(dependency_name, dependency_version,
-                   dependency_repository='https://nexus.exactpro.com/repository/th2-pypi/packages/'):
-    return f"{dependency_name} @ {dependency_repository}{dependency_name}/{dependency_version}/" \
-           f"{dependency_name.replace('-', '_')}-{dependency_version}.tar.gz"
-
-
 with open('package_info.json', 'r') as file:
     package_info = json.load(file)
 
@@ -39,13 +32,13 @@ setup(
     long_description=long_description,
     author='TH2-devs',
     author_email='th2-devs@exactprosystems.com',
-    url='https://gitlab.exactpro.com/vivarium/th2/th2-core-open-source/th2-check2-recon',
+    url='https://github.com/th2-net/th2-check2-recon',
     license='Apache License 2.0',
     python_requires='>=3.7',
     install_requires=[
         'sortedcollections==1.2.1',
-        get_dependency(dependency_name='th2-grpc-util', dependency_version='2.3.1'),
-        get_dependency(dependency_name='th2-common', dependency_version='2.2.2')
+        'th2-grpc-util==2.3.1',
+        'th2-common=2.2.2'
     ],
     packages=[''] + find_packages(include=['th2_check2_recon', 'th2_check2_recon.*']),
     package_data={'': ['package_info.json']}
