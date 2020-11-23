@@ -15,10 +15,9 @@
 
 class RuleConfiguration:
 
-    def __init__(self, name: str, enabled: bool, match_timeout: int, match_timeout_offset_ns: int,
-                 configuration) -> None:
-        self.name = name
-        self.enabled = bool(enabled)
+    def __init__(self, name, enabled, match_timeout, match_timeout_offset_ns, configuration) -> None:
+        self.name = str(name)
+        self.enabled = True if enabled.lower() == 'true' else False
         self.configuration = configuration
         self.match_timeout = int(match_timeout)
         self.match_timeout_offset_ns = int(match_timeout_offset_ns)
