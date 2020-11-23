@@ -13,13 +13,14 @@
 # limitations under the License.
 
 import logging
-import sortedcollections
 from abc import ABC, abstractmethod
+from threading import Lock, Timer
+
+import sortedcollections
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, Message
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
     CompareMessageVsMessageTask, CompareMessageVsMessageResult
-from threading import Lock, Timer
 
 from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
@@ -42,7 +43,7 @@ class EventsBatchCollector(AbstractService):
 
         self.__batches = {}
         self.__lock = Lock()
-        self.__event_router = event_router
+        self.__event_router: EventBatchRouter = event_router
 
     def put_event(self, event: Event):
         with self.__lock:
@@ -72,7 +73,7 @@ class EventsBatchCollector(AbstractService):
 
     def _send_batch(self, batch: EventBatch):
         try:
-            self.__event_router.send_by_attr(batch, ['publish', 'event'])
+            self.__event_router.send(batch)
         except Exception:
             logger.exception("Error while send EventBatch")
 
