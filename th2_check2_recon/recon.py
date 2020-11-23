@@ -54,8 +54,7 @@ class Recon:
             self.rules = self.__load_rules(self.__event_store, self.__message_comparator)
             for rule in self.rules:
                 for attrs in rule.get_attributes():
-                    self.__message_router.subscribe_all_by_attr(callback=rule.get_listener(),
-                                                                queue_attr=attrs)
+                    self.__message_router.subscribe_all(rule.get_listener(), *attrs)
             logger.info('Recon started!')
             self.__loop.run_forever()
         except Exception:
