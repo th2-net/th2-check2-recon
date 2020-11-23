@@ -44,8 +44,8 @@ setup(
     python_requires='>=3.7',
     install_requires=[
         'sortedcollections==1.2.1',
-        get_dependency(dependency_name='th2-grpc-util', dependency_version='2.2.2'),
-        get_dependency(dependency_name='th2-common', dependency_version='2.1.7')
+        get_dependency(dependency_name='th2-grpc-util', dependency_version='2.3.1'),
+        get_dependency(dependency_name='th2-common', dependency_version='2.2.2')
     ],
     packages=[''] + find_packages(include=['th2_check2_recon', 'th2_check2_recon.*']),
     package_data={'': ['package_info.json']}

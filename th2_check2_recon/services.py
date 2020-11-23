@@ -13,14 +13,13 @@
 # limitations under the License.
 
 import logging
-from abc import ABC, abstractmethod
-from threading import Lock, Timer
-
 import sortedcollections
+from abc import ABC, abstractmethod
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, Message
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
     CompareMessageVsMessageTask, CompareMessageVsMessageResult
+from threading import Lock, Timer
 
 from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
@@ -113,18 +112,22 @@ class EventStore(AbstractService):
         self.send_parent_event(self.root_event)
 
     def send_event(self, event: Event, rule_event_id: EventID, group_event_name: str):
-        if not self.__group_event_by_rule_id.__contains__(rule_event_id.id):
-            self.__group_event_by_rule_id[rule_event_id.id] = dict()
-        if not self.__group_event_by_rule_id[rule_event_id.id].__contains__(group_event_name):
-            group_event = EventUtils.create_event(parent_id=rule_event_id,
-                                                  name=group_event_name)
-            self.__group_event_by_rule_id[rule_event_id.id][group_event_name] = group_event
-            self.send_parent_event(group_event)
+        try:
+            if not self.__group_event_by_rule_id.__contains__(rule_event_id.id):
+                self.__group_event_by_rule_id[rule_event_id.id] = dict()
+            if not self.__group_event_by_rule_id[rule_event_id.id].__contains__(group_event_name):
+                group_event = EventUtils.create_event(parent_id=rule_event_id,
+                                                      name=group_event_name)
+                logger.info(f"Create group event '{group_event_name}' for rule event {rule_event_id}")
+                self.__group_event_by_rule_id[rule_event_id.id][group_event_name] = group_event
+                self.send_parent_event(group_event)
 
-        group_event = self.__group_event_by_rule_id[rule_event_id.id][group_event_name]
-        event.id.CopyFrom(EventUtils.new_event_id())
-        event.parent_id.CopyFrom(group_event.id)
-        self.__events_batch_collector.put_event(event)
+            group_event = self.__group_event_by_rule_id[rule_event_id.id][group_event_name]
+            event.id.CopyFrom(EventUtils.new_event_id())
+            event.parent_id.CopyFrom(group_event.id)
+            self.__events_batch_collector.put_event(event)
+        except Exception:
+            logger.exception(f'Error while sending event')
 
     def send_parent_event(self, event: Event):
         event_batch = EventBatch(parent_event_id=event.parent_id) if event.HasField('parent_id') else EventBatch()
