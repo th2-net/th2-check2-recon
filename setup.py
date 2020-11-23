@@ -38,7 +38,7 @@ setup(
     python_requires='>=3.7',
     install_requires=[
         'sortedcollections==1.2.1',
-        'th2-grpc-util==2.3.1',
+        'th2-grpc-util==2.3.2',
         'th2-common==2.2.3'
     ],
     packages=[''] + find_packages(include=['th2_check2_recon', 'th2_check2_recon.*']),
