@@ -30,6 +30,7 @@ setup(
     version=package_version,
     description=package_name,
     long_description=long_description,
+    long_description_content_type='text/markdown',
     author='TH2-devs',
     author_email='th2-devs@exactprosystems.com',
     url='https://github.com/th2-net/th2-check2-recon',
@@ -38,7 +39,7 @@ setup(
     install_requires=[
         'sortedcollections==1.2.1',
         'th2-grpc-util==2.3.1',
-        'th2-common=2.2.2'
+        'th2-common==2.2.2'
     ],
     packages=[''] + find_packages(include=['th2_check2_recon', 'th2_check2_recon.*']),
     package_data={'': ['package_info.json']}
