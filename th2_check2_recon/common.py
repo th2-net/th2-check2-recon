@@ -11,14 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import uuid
 from datetime import datetime
 from json import JSONEncoder
 
 from google.protobuf.timestamp_pb2 import Timestamp
-from th2_grpc_common.common_pb2 import EventStatus, EventID, MessageID, FilterOperation, Direction
 from th2_grpc_common.common_pb2 import Event, Message
+from th2_grpc_common.common_pb2 import EventStatus, EventID, MessageID, FilterOperation, Direction
 from th2_grpc_util.util_pb2 import ComparisonEntryStatus, ComparisonEntry, ComparisonEntryType
+
+logger = logging.getLogger()
 
 
 class EventUtils:
@@ -140,6 +143,8 @@ class VerificationComponent:
         self.type = "verification"
         self.fields = {field_name: VerificationComponent.VerificationEntry(comparison_entry.fields[field_name])
                        for field_name in comparison_entry.fields.keys()}
+        self.status = EventStatus.FAILED if ComparatorUtils.get_status_type(
+            comparison_entry) == ComparisonEntryStatus.FAILED else EventStatus.SUCCESS
 
     class VerificationEntry:
 

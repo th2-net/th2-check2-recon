@@ -15,6 +15,7 @@
 import logging
 from abc import ABC, abstractmethod
 from threading import Lock, Timer
+from typing import Optional
 
 import sortedcollections
 from th2_common.schema.event.event_batch_router import EventBatchRouter
@@ -22,7 +23,7 @@ from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, 
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
     CompareMessageVsMessageTask, CompareMessageVsMessageResult
 
-from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils
+from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils, VerificationComponent
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
 
 logger = logging.getLogger()
@@ -220,6 +221,18 @@ class MessageComparator(AbstractService):
                 return compare_result
         except Exception:
             logger.exception(f"Error while comparing. CompareMessageVsMessageRequest: {request}")
+
+    def compare_messages(self, messages: [ReconMessage],
+                         ignore_fields: [str] = None) -> Optional[VerificationComponent]:
+        if len(messages) != 2:
+            logger.exception(f'The number of messages to compare must be 2.')
+            return
+        settings = ComparisonSettings()
+        if ignore_fields is not None:
+            settings.ignore_fields.extend(ignore_fields)
+
+        compare_result = self.compare(messages[0].proto_message, messages[1].proto_message, settings)
+        return VerificationComponent(compare_result.comparison_result)
 
     def stop(self):
         pass
