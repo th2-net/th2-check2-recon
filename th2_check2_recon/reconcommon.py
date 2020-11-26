@@ -44,9 +44,9 @@ class ReconMessage:
         if self.group_id is not None:
             result += f" Group='{self.group_id}'"
         if len(self.hash_info) > 0:
-            result += f" Hash{self.get_info(self.hash_info)}"
+            result += f' Hash{self.get_info(self.hash_info)}'
         if len(self.group_info) > 0:
-            result += f" GroupID{self.get_info(self.group_info)}"
+            result += f' GroupID{self.get_info(self.group_info)}'
         return result
 
 

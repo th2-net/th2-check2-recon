@@ -61,19 +61,6 @@ class EventUtils:
                      body=body,
                      attached_message_ids=attached_message_ids)
 
-    @staticmethod
-    def create_verification_event(name: str, comparison_entry: ComparisonEntry, id: EventID = None,
-                                  parent_id: EventID = None, body: bytes = None,
-                                  attached_message_ids: [MessageID] = None) -> Event:
-        status = EventStatus.FAILED if ComparatorUtils.get_status_type(
-            comparison_entry) == ComparisonEntryStatus.FAILED else EventStatus.SUCCESS
-        return EventUtils.create_event(name=name,
-                                       id=id,
-                                       parent_id=parent_id,
-                                       status=status,
-                                       body=body,
-                                       attached_message_ids=attached_message_ids)
-
 
 class MessageUtils:
 
@@ -121,14 +108,14 @@ class ComparatorUtils:
 class MessageComponent:
 
     def __init__(self, message: str) -> None:
-        self.type = "message"
+        self.type = 'message'
         self.data = message
 
 
 class TableComponent:
 
     def __init__(self, column_names: list) -> None:
-        self.type = "table"
+        self.type = 'table'
         self.rows = []
         self.__column_names = column_names
 
@@ -140,7 +127,7 @@ class TableComponent:
 class VerificationComponent:
 
     def __init__(self, comparison_entry: ComparisonEntry) -> None:
-        self.type = "verification"
+        self.type = 'verification'
         self.fields = {field_name: VerificationComponent.VerificationEntry(comparison_entry.fields[field_name])
                        for field_name in comparison_entry.fields.keys()}
         self.status = EventStatus.FAILED if ComparatorUtils.get_status_type(
