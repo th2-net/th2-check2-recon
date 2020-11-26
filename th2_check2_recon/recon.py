@@ -58,9 +58,10 @@ class Recon:
             logger.info('Recon started!')
             self.__loop.run_forever()
         except Exception:
-            logger.exception(f"Recon start error")
+            logger.exception(f'Recon running error')
 
     def stop(self):
+        logger.info(f'Recon try to stop')
         try:
             self.__message_router.unsubscribe_all()
             for rule in self.rules:
@@ -68,13 +69,13 @@ class Recon:
             self.__message_comparator.stop()
             self.__event_store.stop()
         except Exception:
-            logger.exception("Error while stop Recon")
+            logger.exception('Error while stop Recon')
         finally:
             self.__loop.close()
-            logger.info(f"Recon stopped!")
+            logger.info(f'Recon stopped!')
 
     def __load_rules(self, event_store: EventStore, message_comparator: MessageComparator) -> [Rule]:
-        logger.info(f"Try load rules")
+        logger.info(f'Try load rules')
         rules_package = importlib.import_module(self.__config.rules_package_path)
         loaded_rules = []
         for rule_config in self.__config.rules:
@@ -86,5 +87,5 @@ class Recon:
                                                 cache_size=self.__config.cache_size,
                                                 match_timeout=match_timeout,
                                                 configuration=rule_config.configuration))
-        logger.info(f"Rules loaded")
+        logger.info(f'Rules loaded')
         return loaded_rules
