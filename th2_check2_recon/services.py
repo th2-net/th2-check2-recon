@@ -109,7 +109,8 @@ class EventStore(AbstractService):
                                                              event_batch_send_interval)
         self.__group_event_by_rule_id = dict()
 
-        self.root_event: Event = EventUtils.create_event(name='Recon_' + report_name)
+
+        self.root_event: Event = EventUtils.create_event(name='Recon: ' + report_name)
         logger.info(f'Created root report Event for Recon: {self.root_event}')
         self.send_parent_event(self.root_event)
 
