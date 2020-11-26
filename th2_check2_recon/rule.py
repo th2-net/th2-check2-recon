@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 import logging
 import traceback
 from abc import abstractmethod
@@ -34,17 +35,22 @@ class MessageHandler(MessageListener):
     def handler(self, attributes: tuple, message_batch: MessageBatch):
         try:
             for message in message_batch.messages:
+                start_time = time.time_ns()
                 self.__rule.process(message, attributes)
+                logger.info(f"  Processed '{message.metadata.message_type}'"
+                            f" id='{MessageUtils.str_message_id(message)}'"
+                            f" in {(time.time_ns() - start_time) / 1_000_000} ms")
+
             logger.info(f"  Cache size '{self.__rule.get_name()}': {self.__rule.log_groups_size()}.")
         except Exception:
-            logger.exception(f"An error occurred while processing the received message. Body: {message_batch}")
+            logger.exception(f'An error occurred while processing the received message. Body: {message_batch}')
 
 
 class Rule:
 
     def __init__(self, event_store: EventStore, message_comparator: MessageComparator,
                  cache_size: int, match_timeout: int, configuration) -> None:
-        logger.info(f"Rule {self.get_name()} initializing...")
+        logger.info(f"Rule '{self.get_name()}' initializing...")
         self.event_store = event_store
         self.message_comparator = message_comparator
         self.match_timeout = match_timeout
@@ -54,10 +60,11 @@ class Rule:
             EventUtils.create_event(name=self.get_name(),
                                     parent_id=event_store.root_event.id,
                                     body=EventUtils.create_event_body(MessageComponent(message=self.get_description())))
+        logger.info(f"Created report Event for Rule '{self.get_name()}': {self.rule_event}")
         self.event_store.send_parent_event(self.rule_event)
 
         self.__cache = Cache(self.description_of_groups(), cache_size, event_store, self.rule_event)
-        logger.info(f"Rule {self.get_name()} initialized")
+        logger.info(f"Rule '{self.get_name()}' initialized")
 
     @abstractmethod
     def get_name(self) -> str:

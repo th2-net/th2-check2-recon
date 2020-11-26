@@ -69,7 +69,6 @@ class EventsBatchCollector(AbstractService):
                 self.__batches.pop(batch.parent_event_id.id)
             else:
                 return
-
         self._send_batch(batch)
 
     def _send_batch(self, batch: EventBatch):
@@ -96,12 +95,12 @@ class EventsBatchCollector(AbstractService):
 
 
 class EventStore(AbstractService):
-    MATCHED_FAILED = "Matched failed"
-    MATCHED_PASSED = "Matched passed"
-    MATCHED_OUT_OF_TIMEOUT = "Matched out of timeout"
-    NO_MATCH_WITHIN_TIMEOUT = "No match within timeout"
-    NO_MATCH = "No match"
-    ERRORS = "Errors"
+    MATCHED_FAILED = 'Matched failed'
+    MATCHED_PASSED = 'Matched passed'
+    MATCHED_OUT_OF_TIMEOUT = 'Matched out of timeout'
+    NO_MATCH_WITHIN_TIMEOUT = 'No match within timeout'
+    NO_MATCH = 'No match'
+    ERRORS = 'Errors'
 
     def __init__(self, event_router: EventBatchRouter, report_name: str, event_batch_max_size: int,
                  event_batch_send_interval: int) -> None:
@@ -110,7 +109,9 @@ class EventStore(AbstractService):
                                                              event_batch_send_interval)
         self.__group_event_by_rule_id = dict()
 
+
         self.root_event: Event = EventUtils.create_event(name='Recon: ' + report_name)
+        logger.info(f'Created root report Event for Recon: {self.root_event}')
         self.send_parent_event(self.root_event)
 
     def send_event(self, event: Event, rule_event_id: EventID, group_event_name: str):
@@ -120,7 +121,7 @@ class EventStore(AbstractService):
             if not self.__group_event_by_rule_id[rule_event_id.id].__contains__(group_event_name):
                 group_event = EventUtils.create_event(parent_id=rule_event_id,
                                                       name=group_event_name)
-                logger.info(f"Create group event '{group_event_name}' for rule event {rule_event_id}")
+                logger.info(f"Create group Event '{group_event_name}' for rule Event '{rule_event_id}'")
                 self.__group_event_by_rule_id[rule_event_id.id][group_event_name] = group_event
                 self.send_parent_event(group_event)
 
@@ -132,13 +133,13 @@ class EventStore(AbstractService):
             logger.exception(f'Error while sending event')
 
     def send_parent_event(self, event: Event):
-        event_batch = EventBatch(parent_event_id=event.parent_id) if event.HasField('parent_id') else EventBatch()
+        event_batch = EventBatch()
         event_batch.events.append(event)
         self.event_router.send(event_batch)
 
     def store_no_match_within_timeout(self, rule_event_id: EventID, recon_message: ReconMessage,
                                       actual_timestamp: int, timeout: int):
-        name = f"{recon_message.get_all_info()}"
+        name = f'{recon_message.get_all_info()}'
         message_timestamp = MessageUtils.get_timestamp_ns(recon_message.proto_message)
 
         units = ['sec', 'ms', 'mcs', 'ns']
@@ -162,6 +163,7 @@ class EventStore(AbstractService):
         event = EventUtils.create_event(name=name,
                                         body=body,
                                         attached_message_ids=attached_message_ids)
+        logger.info(f"Create '{self.NO_MATCH_WITHIN_TIMEOUT}' Event for rule Event '{rule_event_id}'")
         self.send_event(event, rule_event_id, self.NO_MATCH_WITHIN_TIMEOUT)
 
     def store_no_match(self, rule_event_id: EventID, message: ReconMessage, event_message: str):
@@ -173,7 +175,7 @@ class EventStore(AbstractService):
                                         body=body,
                                         status=EventStatus.SUCCESS if message.is_matched else EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids)
-
+        logger.info(f"Create '{self.NO_MATCH}' Event for rule Event '{rule_event_id}'")
         self.send_event(event, rule_event_id, self.NO_MATCH)
 
     def store_error(self, rule_event_id: EventID, event_name: str, error_message: str,
@@ -184,7 +186,7 @@ class EventStore(AbstractService):
                                         status=EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids,
                                         body=body)
-
+        logger.info(f"Create '{self.ERRORS}' Event for rule Event '{rule_event_id}'")
         self.send_event(event, rule_event_id, self.ERRORS)
 
     def store_matched_out_of_timeout(self, rule_event_id: EventID, check_event: Event,
@@ -220,7 +222,7 @@ class MessageComparator(AbstractService):
             for compare_result in compare_response.comparison_results:  # TODO  fix it
                 return compare_result
         except Exception:
-            logger.exception(f"Error while comparing. CompareMessageVsMessageRequest: {request}")
+            logger.exception(f'Error while comparing. CompareMessageVsMessageRequest: {request}')
 
     def compare_messages(self, messages: [ReconMessage],
                          ignore_fields: [str] = None) -> Optional[VerificationComponent]:
