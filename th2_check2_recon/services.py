@@ -110,7 +110,7 @@ class EventStore(AbstractService):
                                                              event_batch_send_interval)
         self.__group_event_by_rule_id = dict()
 
-        self.root_event: Event = EventUtils.create_event(name='Recon_' + report_name)
+        self.root_event: Event = EventUtils.create_event(name='Recon: ' + report_name)
         self.send_parent_event(self.root_event)
 
     def send_event(self, event: Event, rule_event_id: EventID, group_event_name: str):
