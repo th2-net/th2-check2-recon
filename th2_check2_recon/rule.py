@@ -126,13 +126,12 @@ class Rule:
         group_indices = []
         group_sizes = []
 
-        for index_of_compared_group in range(len(self.__cache.message_groups)):
-            if index_of_compared_group == index_of_main_group:
+        for idx, compared_group in enumerate(self.__cache.message_groups):
+            if idx == index_of_main_group:
                 continue
-            compared_group: Cache.MessageGroup = self.__cache.message_groups[index_of_compared_group]
-            if not compared_group.contains(message.hash):
-                break
-            group_indices.append(0)
+            if message.hash not in compared_group:
+                break   # TODO - Not continue ?? What will be if groups > 2 ?
+            group_indices.append(0) # TODO - Are you shure that 0 ?? May be idx ?
             group_sizes.append(len(compared_group.get(message.hash)))
 
         if len(group_indices) != len(self.__cache.message_groups) - 1:
