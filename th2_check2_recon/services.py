@@ -267,9 +267,9 @@ class Cache(AbstractService):
                 group.is_cleanable = False
 
     def index_of_group(self, group_id: str) -> int:
-        for i in range(len(self.message_groups)):
-            if self.message_groups[i].id == group_id:
-                return i
+        for idx, group in enumerate(self.message_groups):
+            if group.id == group_id:
+                return idx
         return -1
 
     def stop(self):
