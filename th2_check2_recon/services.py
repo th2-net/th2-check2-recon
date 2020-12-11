@@ -298,12 +298,12 @@ class Cache(AbstractService):
                             f"in message group '{self.id}'"
                     self.remove(message.hash, cause)
 
-                if not self.data.__contains__(message.hash):
+                if message.hash not in self.data:
                     self.data[message.hash] = list()
                 self.data[message.hash].append(message)
 
                 timestamp = MessageUtils.get_timestamp_ns(message.proto_message)
-                if not self.hash_by_sorted_timestamp.__contains__(timestamp):
+                if timestamp not in self.hash_by_sorted_timestamp:
                     self.hash_by_sorted_timestamp[timestamp] = list()
                 self.hash_by_sorted_timestamp[timestamp].append(message.hash)
 
@@ -373,3 +373,6 @@ class Cache(AbstractService):
                 hash_for_remove = self.data.keys().__iter__().__next__()
                 while self.data.__contains__(hash_for_remove) and len(self.data[hash_for_remove]) != 0:
                     self.remove(hash_for_remove, cause, remove_all=False)
+        
+        def __contains__(self, hash_of_message):
+            return hash_of_message in self.data
