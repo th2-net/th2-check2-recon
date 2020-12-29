@@ -15,7 +15,7 @@
 import logging
 from abc import ABC, abstractmethod
 from threading import Lock, Timer
-from typing import Optional
+from typing import Optional, Dict, List
 
 import sortedcollections
 from th2_common.schema.event.event_batch_router import EventBatchRouter
@@ -56,7 +56,7 @@ class EventsBatchCollector(AbstractService):
                 self.__batches[event.parent_id.id] = (event_batch, batch_timer)
             event_batch.events.append(event)
             if len(event_batch.events) == self.max_batch_size:
-                self.__batches.pop(event.parent_id.id)
+                del self.__batches[event.parent_id.id]
                 batch_timer.cancel()
             else:
                 return
@@ -66,7 +66,7 @@ class EventsBatchCollector(AbstractService):
     def _timer_handle(self, batch: EventBatch):
         with self.__lock:
             if batch.parent_event_id.id in self.__batches:
-                self.__batches.pop(batch.parent_event_id.id)
+                del self.__batches[batch.parent_event_id.id]
             else:
                 return
         self._send_batch(batch)
@@ -283,13 +283,13 @@ class Cache(AbstractService):
             self.id = id
             self.capacity = capacity
             self.size = 0
-            self.type = type
+            self.type: MessageGroupType = type
             self.event_store = event_store
             self.rule_event = rule_event
 
             self.is_cleanable = True
-            self.data = dict()
-            self.hash_by_sorted_timestamp = sortedcollections.SortedDict()
+            self.data: Dict[int, List[ReconMessage]] = dict()  # {ReconMessage.hash: ReconMessage}
+            self.hash_by_sorted_timestamp: Dict[int, List[int]] = sortedcollections.SortedDict()  # {timestamp: ReconMessage.hash}
 
         def put(self, message: ReconMessage):
             if self.size < self.capacity:
@@ -339,27 +339,26 @@ class Cache(AbstractService):
                                                                        actual_timestamp, timeout)
 
         def remove(self, hash_of_message: int, cause="", remove_all=True):
-            message_for_remove = None
+            message_for_remove: ReconMessage
             if remove_all:
-                for message in self.data[hash_of_message]:
-                    message_for_remove: ReconMessage = message
+                for message_for_remove in self.data[hash_of_message]:
                     timestamp_for_remove = MessageUtils.get_timestamp_ns(message_for_remove.proto_message)
                     self.hash_by_sorted_timestamp[timestamp_for_remove].remove(hash_of_message)
                     if len(self.hash_by_sorted_timestamp[timestamp_for_remove]) == 0:
-                        self.hash_by_sorted_timestamp.pop(timestamp_for_remove)
+                        del self.hash_by_sorted_timestamp[timestamp_for_remove]
                     self.size -= 1
-                self.data.pop(hash_of_message)
+                del self.data[hash_of_message]
             else:
                 message_for_remove: ReconMessage = self.data[hash_of_message].__iter__().__next__()
                 timestamp_for_remove = MessageUtils.get_timestamp_ns(message_for_remove.proto_message)
 
                 self.data[hash_of_message].remove(message_for_remove)
                 if len(self.data[hash_of_message]) == 0:
-                    self.data.pop(hash_of_message)
+                    del self.data[hash_of_message]
 
                 self.hash_by_sorted_timestamp[timestamp_for_remove].remove(hash_of_message)
                 if len(self.hash_by_sorted_timestamp[timestamp_for_remove]) == 0:
-                    self.hash_by_sorted_timestamp.pop(timestamp_for_remove)
+                    del self.hash_by_sorted_timestamp[timestamp_for_remove]
                 self.size -= 1
 
             if len(cause) != 0:
