@@ -267,9 +267,9 @@ class Cache(AbstractService):
                 group.is_cleanable = False
 
     def index_of_group(self, group_id: str) -> int:
-        for i in range(len(self.message_groups)):
-            if self.message_groups[i].id == group_id:
-                return i
+        for idx, group in enumerate(self.message_groups):
+            if group.id == group_id:
+                return idx
         return -1
 
     def stop(self):
@@ -298,14 +298,10 @@ class Cache(AbstractService):
                             f"in message group '{self.id}'"
                     self.remove(message.hash, cause)
 
-                if not self.data.__contains__(message.hash):
-                    self.data[message.hash] = list()
-                self.data[message.hash].append(message)
+                self.data.setdefault(message.hash, []).append(message)
 
                 timestamp = MessageUtils.get_timestamp_ns(message.proto_message)
-                if not self.hash_by_sorted_timestamp.__contains__(timestamp):
-                    self.hash_by_sorted_timestamp[timestamp] = list()
-                self.hash_by_sorted_timestamp[timestamp].append(message.hash)
+                self.hash_by_sorted_timestamp.setdefault(timestamp, []).append(message.hash)
 
                 self.size += 1
             else:
