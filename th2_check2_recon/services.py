@@ -40,28 +40,26 @@ class EventsBatchCollector(AbstractService):
 
     def __init__(self, event_router, max_batch_size: int, timeout: int) -> None:
         self.max_batch_size = max_batch_size
-        self.timeout = timeout
+        self.timeout = timeout  # Send interval
 
-        self.__batches = {}
+        self.__batches = {}  # {event_id: (event_batch, batch_timer)}
         self.__lock = Lock()
         self.__event_router: EventBatchRouter = event_router
 
     def put_event(self, event: Event):
         with self.__lock:
-            if event.parent_id.id in self.__batches:
-                event_batch, batch_timer = self.__batches.get(event.parent_id.id)
-            else:
+            try:
+                event_batch, batch_timer = self.__batches[event.parent_id.id]
+            except KeyError:
                 event_batch = EventBatch(parent_event_id=event.parent_id)
                 batch_timer = self._create_timer(event_batch)
                 self.__batches[event.parent_id.id] = (event_batch, batch_timer)
+
             event_batch.events.append(event)
             if len(event_batch.events) == self.max_batch_size:
                 del self.__batches[event.parent_id.id]
                 batch_timer.cancel()
-            else:
-                return
-
-        self._send_batch(event_batch)
+                self._send_batch(event_batch)
 
     def _timer_handle(self, batch: EventBatch):
         with self.__lock:
@@ -74,8 +72,8 @@ class EventsBatchCollector(AbstractService):
     def _send_batch(self, batch: EventBatch):
         try:
             self.__event_router.send(batch)
-        except Exception:
-            logger.exception("Error while send EventBatch")
+        except Exception as e:
+            logger.exception(F"Error while send EventBatch: {e}")
 
     def _create_timer(self, batch: EventBatch):
         timer = Timer(self.timeout, self._timer_handle, [batch])
@@ -108,7 +106,6 @@ class EventStore(AbstractService):
         self.__events_batch_collector = EventsBatchCollector(event_router, event_batch_max_size,
                                                              event_batch_send_interval)
         self.__group_event_by_rule_id = dict()
-
 
         self.root_event: Event = EventUtils.create_event(name='Recon: ' + report_name)
         logger.info(f'Created root report Event for Recon: {self.root_event}')
