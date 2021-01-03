@@ -126,7 +126,7 @@ class Rule:
         group_indices = []
         group_sizes = []
 
-        for index_of_compared_group in range(len(self.__cache.message_groups)):
+        for index_of_compared_group in range(self.__cache.message_groups_count):
             if index_of_compared_group == index_of_main_group:
                 continue
             compared_group: Cache.MessageGroup = self.__cache.message_groups[index_of_compared_group]
@@ -135,7 +135,7 @@ class Rule:
             group_indices.append(0)
             group_sizes.append(len(compared_group.get(message.hash)))
 
-        if len(group_indices) != len(self.__cache.message_groups) - 1:
+        if len(group_indices) != self.__cache.message_groups_count - 1:
             self.__cache.message_groups[index_of_main_group].put(message)
             return
 
