@@ -29,6 +29,14 @@ class ReconMessage:
         self.is_matched = False
         self.is_check_no_match_within_timeout = False
 
+    @property
+    def timestamp(self):
+        try:
+            return self._timestamp
+        except AttributeError:
+            self._timestamp = MessageUtils.get_timestamp_ns(self.proto_message)
+            return self._timestamp
+
     @staticmethod
     def get_info(info_dict: dict) -> str:
         message = ""
@@ -48,6 +56,11 @@ class ReconMessage:
         if len(self.group_info) > 0:
             result += f' GroupID{self.get_info(self.group_info)}'
         return result
+
+
+def _get_msg_timestamp(msg: ReconMessage):
+    """Used instead of lambda in Rule.__check_and_store_event"""
+    return msg.timestamp
 
 
 class MessageGroupType(Enum):

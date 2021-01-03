@@ -23,6 +23,7 @@ from th2_grpc_common.common_pb2 import Event, Message, MessageBatch
 from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils
 from th2_check2_recon.reconcommon import ReconMessage
 from th2_check2_recon.services import EventStore, MessageComparator, Cache
+from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp
 
 logger = logging.getLogger()
 
@@ -106,7 +107,7 @@ class Rule:
 
     def process(self, proto_message: Message, attributes: tuple):
         message = ReconMessage(proto_message=proto_message)
-        self.check_no_match_within_timeout(MessageUtils.get_timestamp_ns(proto_message))
+        self.check_no_match_within_timeout(message.timestamp)
 
         self.group(message, attributes)
         if message.group_id is None:
@@ -135,6 +136,7 @@ class Rule:
             group_indices.append(0)
             group_sizes.append(len(compared_group.get(message.hash)))
 
+        # Check if each group has messages with compared hash
         if len(group_indices) != self.__cache.message_groups_count - 1:
             self.__cache.message_groups[index_of_main_group].put(message)
             return
@@ -169,17 +171,14 @@ class Rule:
         if check_event is None:
             return
 
-        max_timestamp_msg = max(matched_messages, key=lambda m: MessageUtils.get_timestamp_ns(m.proto_message))
-        min_timestamp_msg = min(matched_messages, key=lambda m: MessageUtils.get_timestamp_ns(m.proto_message))
+        max_timestamp_msg = max(matched_messages, key=_get_msg_timestamp)
+        min_timestamp_msg = min(matched_messages, key=_get_msg_timestamp)
 
-        max_timestamp = MessageUtils.get_timestamp_ns(max_timestamp_msg.proto_message)
-        min_timestamp = MessageUtils.get_timestamp_ns(min_timestamp_msg.proto_message)
-
-        if max_timestamp - min_timestamp > self.match_timeout:
+        if max_timestamp_msg.timestamp - min_timestamp_msg.timestamp > self.match_timeout:
             self.event_store.store_matched_out_of_timeout(rule_event_id=self.rule_event.id,
                                                           check_event=check_event,
-                                                          min_time=min_timestamp,
-                                                          max_time=max_timestamp)
+                                                          min_time=min_timestamp_msg.timestamp,
+                                                          max_time=max_timestamp_msg.timestamp)
         else:
             self.event_store.store_matched(rule_event_id=self.rule_event.id,
                                            check_event=check_event)

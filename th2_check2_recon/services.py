@@ -287,8 +287,8 @@ class Cache(AbstractService):
             self.rule_event = rule_event
 
             self.is_cleanable = True
-            self.data: Dict[int, List[ReconMessage]] = dict()  # {ReconMessage.hash: ReconMessage}
-            self.hash_by_sorted_timestamp: Dict[int, List[int]] = sortedcollections.SortedDict()  # {timestamp: ReconMessage.hash}
+            self.data: Dict[int, List[ReconMessage]] = dict()  # {ReconMessage.hash: [ReconMessage]}
+            self.hash_by_sorted_timestamp: Dict[int, List[int]] = sortedcollections.SortedDict()  # {timestamp: [ReconMessage.hash]}
 
         def put(self, message: ReconMessage):
             if self.size < self.capacity:
@@ -299,8 +299,7 @@ class Cache(AbstractService):
 
                 self.data.setdefault(message.hash, []).append(message)
 
-                timestamp = MessageUtils.get_timestamp_ns(message.proto_message)
-                self.hash_by_sorted_timestamp.setdefault(timestamp, []).append(message.hash)
+                self.hash_by_sorted_timestamp.setdefault(message.timestamp, []).append(message.hash)
 
                 self.size += 1
             else:
@@ -337,15 +336,15 @@ class Cache(AbstractService):
             message_for_remove: ReconMessage
             if remove_all:
                 for message_for_remove in self.data[hash_of_message]:
-                    timestamp_for_remove = MessageUtils.get_timestamp_ns(message_for_remove.proto_message)
+                    timestamp_for_remove = message_for_remove.timestamp
                     self.hash_by_sorted_timestamp[timestamp_for_remove].remove(hash_of_message)
                     if len(self.hash_by_sorted_timestamp[timestamp_for_remove]) == 0:
                         del self.hash_by_sorted_timestamp[timestamp_for_remove]
                     self.size -= 1
                 del self.data[hash_of_message]
             else:
-                message_for_remove: ReconMessage = self.data[hash_of_message].__iter__().__next__()
-                timestamp_for_remove = MessageUtils.get_timestamp_ns(message_for_remove.proto_message)
+                message_for_remove = self.data[hash_of_message].__iter__().__next__()
+                timestamp_for_remove = message_for_remove.timestamp
 
                 self.data[hash_of_message].remove(message_for_remove)
                 if len(self.data[hash_of_message]) == 0:
