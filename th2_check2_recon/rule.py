@@ -12,39 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 import logging
 import traceback
 from abc import abstractmethod
 
-from th2_common.schema.message.message_listener import MessageListener
-from th2_grpc_common.common_pb2 import Event, Message, MessageBatch
-
+from th2_grpc_common.common_pb2 import Event, Message
 from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils
-from th2_check2_recon.reconcommon import ReconMessage
+from th2_check2_recon.handler import MessageHandler, AbstractHandler
 from th2_check2_recon.services import EventStore, MessageComparator, Cache
 from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp
 
 logger = logging.getLogger()
-
-
-class MessageHandler(MessageListener):
-
-    def __init__(self, rule) -> None:
-        self.__rule = rule
-
-    def handler(self, attributes: tuple, message_batch: MessageBatch):
-        try:
-            for message in message_batch.messages:
-                start_time = time.time_ns()
-                self.__rule.process(message, attributes)
-                logger.info(f"  Processed '{message.metadata.message_type}'"
-                            f" id='{MessageUtils.str_message_id(message)}'"
-                            f" in {(time.time_ns() - start_time) / 1_000_000} ms")
-
-            logger.info(f"  Cache size '{self.__rule.get_name()}': {self.__rule.log_groups_size()}.")
-        except Exception:
-            logger.exception(f'An error occurred while processing the received message. Body: {message_batch}')
 
 
 class Rule:
@@ -102,7 +80,7 @@ class Rule:
     def configure(self, configuration):
         pass
 
-    def get_listener(self) -> MessageListener:
+    def get_listener(self) -> AbstractHandler:
         return MessageHandler(self)
 
     def process(self, proto_message: Message, attributes: tuple):
