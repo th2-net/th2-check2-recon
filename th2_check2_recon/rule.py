@@ -96,9 +96,10 @@ class Rule:
 
         index_of_main_group = self.__cache.index_of_group(message.group_id)
         if index_of_main_group == -1:
-            logger.info(f"RULE '{self.get_name()}': Ignored because group '{message.group_id}' don't exist. "
-                        f"{message.get_all_info()}")
-            return
+            raise Exception(F"'group' method set incorrect groups.\n"
+                            F" - message: {message.get_all_info()}\n"
+                            F" - available groups: {self.description_of_groups()}\n"
+                            F" - message.group_id: {message.group_id}")
         else:
             logger.info(f"RULE '{self.get_name()}': Received {message.get_all_info()}")
 
