@@ -15,6 +15,7 @@
 import logging
 import traceback
 from abc import abstractmethod
+from typing import Tuple, List, Optional
 
 from th2_grpc_common.common_pb2 import Event, Message
 from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils
@@ -27,7 +28,7 @@ logger = logging.getLogger()
 
 class Rule:
 
-    def __init__(self, event_store: EventStore, message_comparator: MessageComparator,
+    def __init__(self, event_store: EventStore, message_comparator: Optional[MessageComparator],
                  cache_size: int, match_timeout: int, configuration) -> None:
         logger.info(f"Rule '{self.get_name()}' initializing...")
         self.event_store = event_store

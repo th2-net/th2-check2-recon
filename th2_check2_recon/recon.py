@@ -16,24 +16,22 @@ import importlib
 import logging
 
 from th2_common.schema.event.event_batch_router import EventBatchRouter
-from th2_common.schema.grpc.router.grpc_router import GrpcRouter
 from th2_common.schema.message.message_router import MessageRouter
-from th2_grpc_util.util_service import MessageComparatorServiceService
 
 from th2_check2_recon.configuration import ReconConfiguration
 from th2_check2_recon.rule import Rule
-from th2_check2_recon.services import EventStore
-from th2_check2_recon.services import MessageComparator
+from th2_check2_recon.services import EventStore, AbstractService
+from typing import Optional
 
 logger = logging.getLogger()
 
 
 class Recon:
-    def __init__(self, event_router: EventBatchRouter, grpc_router: GrpcRouter, message_router: MessageRouter,
-                 custom_config: dict) -> None:
+    def __init__(self, event_router: EventBatchRouter, message_router: MessageRouter,
+                 custom_config: dict, message_comparator: Optional[AbstractService] = None) -> None:
         logger.info('Recon initializing...')
         self.__message_router = message_router
-        self.__message_comparator = MessageComparator(grpc_router.get_service(MessageComparatorServiceService))
+        self.__message_comparator = message_comparator
         self.__config = ReconConfiguration(**custom_config)
 
         self.__event_store = EventStore(event_router=event_router,
@@ -51,7 +49,7 @@ class Recon:
     def start(self):
         try:
             logger.info('Recon running...')
-            self.rules = self.__load_rules(self.__event_store, self.__message_comparator)
+            self.rules = self.__load_rules(self.__event_store)
             for rule in self.rules:
                 for attrs in rule.get_attributes():
                     self.__message_router.subscribe_all(rule.get_listener(), *attrs)
@@ -66,7 +64,8 @@ class Recon:
             self.__message_router.unsubscribe_all()
             for rule in self.rules:
                 rule.stop()
-            self.__message_comparator.stop()
+            if self.__message_comparator is not None:
+                self.__message_comparator.stop()
             self.__event_store.stop()
         except Exception:
             logger.exception('Error while stop Recon')
@@ -74,7 +73,7 @@ class Recon:
             self.__loop.close()
             logger.info(f'Recon stopped!')
 
-    def __load_rules(self, event_store: EventStore, message_comparator: MessageComparator) -> [Rule]:
+    def __load_rules(self, event_store: EventStore) -> [Rule]:
         logger.info(f'Try load rules')
         rules_package = importlib.import_module(self.__config.rules_package_path)
         loaded_rules = []
@@ -83,7 +82,7 @@ class Recon:
                 module = importlib.import_module(rules_package.__name__ + '.' + rule_config.name)
                 match_timeout = rule_config.match_timeout * 1_000_000_000 + rule_config.match_timeout_offset_ns
                 loaded_rules.append(module.Rule(event_store=event_store,
-                                                message_comparator=message_comparator,
+                                                message_comparator=self.__message_comparator,
                                                 cache_size=self.__config.cache_size,
                                                 match_timeout=match_timeout,
                                                 configuration=rule_config.configuration))

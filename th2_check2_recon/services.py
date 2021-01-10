@@ -245,12 +245,14 @@ class Cache(AbstractService):
         self.event_store = event_store
         self.rule_event = rule_event
 
-        self.message_groups = [Cache.MessageGroup(id=message_group_id,
-                                                  capacity=cache_size,
-                                                  type=message_group_types[message_group_id],
-                                                  event_store=event_store,
-                                                  rule_event=self.rule_event)
-                               for message_group_id in message_group_types.keys()]
+        self.message_groups: List[Cache.MessageGroup] = [
+            Cache.MessageGroup(id=message_group_id,
+                               capacity=cache_size,
+                               type=message_group_types[message_group_id],
+                               event_store=event_store,
+                               rule_event=self.rule_event)
+            for message_group_id in message_group_types.keys()]
+
         multi_cnt = 0
         for group in self.message_groups:
             if group.type == MessageGroupType.multi:
@@ -309,7 +311,7 @@ class Cache(AbstractService):
                 self.remove(hash_for_remove, cause, remove_all=False)
                 self.put(message)
 
-        def get(self, hash_of_message: int) -> list:
+        def get(self, hash_of_message: int) -> List[ReconMessage]:
             return self.data[hash_of_message]
 
         def contains(self, hash_of_message: int) -> bool:
@@ -366,3 +368,6 @@ class Cache(AbstractService):
                 hash_for_remove = self.data.keys().__iter__().__next__()
                 while self.data.__contains__(hash_for_remove) and len(self.data[hash_for_remove]) != 0:
                     self.remove(hash_for_remove, cause, remove_all=False)
+
+        def __contains__(self, hash_of_message):
+            return hash_of_message in self.data
