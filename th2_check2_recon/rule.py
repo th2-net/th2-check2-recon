@@ -34,7 +34,6 @@ class Rule:
         self.event_store = event_store
         self.message_comparator = message_comparator
         self.match_timeout = match_timeout
-        self.configure(configuration)
 
         self.rule_event: Event = \
             EventUtils.create_event(name=self.get_name(),
@@ -43,8 +42,9 @@ class Rule:
         logger.info(f"Created report Event for Rule '{self.get_name()}': {self.rule_event}")
         self.event_store.send_parent_event(self.rule_event)
 
-        self.__cache = Cache(self.description_of_groups(), cache_size, event_store, self.rule_event)
+        self._cache = Cache(self.description_of_groups(), cache_size, event_store, self.rule_event)
         logger.info(f"Rule '{self.get_name()}' initialized")
+        self.configure(configuration)  # Do not raise this line up because all the variables above must be available in the self.configure function
 
     @abstractmethod
     def get_name(self) -> str:
@@ -67,15 +67,15 @@ class Rule:
         pass
 
     @abstractmethod
-    def group(self, message: ReconMessage, attributes: tuple):
+    def group(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         pass
 
     @abstractmethod
-    def hash(self, message: ReconMessage, attributes: tuple):
+    def hash(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         pass
 
     @abstractmethod
-    def check(self, messages: [ReconMessage]) -> Event:
+    def check(self, messages: [ReconMessage], *args, **kwargs) -> Optional[Event]:
         pass
 
     def configure(self, configuration):
@@ -84,18 +84,21 @@ class Rule:
     def get_listener(self) -> AbstractHandler:
         return MessageHandler(self)
 
-    def process(self, proto_message: Message, attributes: tuple):
+    def process(self, proto_message: Message, attributes: tuple, *args, **kwargs):
+        self._process(proto_message, attributes, *args, **kwargs)
+
+    def _process(self, proto_message: Message, attributes: tuple, *args, **kwargs):
         message = ReconMessage(proto_message=proto_message)
         self.check_no_match_within_timeout(message.timestamp)
 
-        self.group(message, attributes)
+        self.group(message, attributes, *args, **kwargs)
         if message.group_id is None:
             logger.info(f"RULE '{self.get_name()}': Ignored  {message.get_all_info()}")
             return
 
-        self.hash(message, attributes)
+        self.hash(message, attributes, *args, **kwargs)
 
-        index_of_main_group = self.__cache.index_of_group(message.group_id)
+        index_of_main_group = self._cache.index_of_group(message.group_id)
         if index_of_main_group == -1:
             raise Exception(F"'group' method set incorrect groups.\n"
                             F" - message: {message.get_all_info()}\n"
@@ -117,8 +120,8 @@ class Rule:
             group_sizes.append(len(compared_group.get(message.hash)))
 
         # Check if each group has messages with compared hash
-        if len(group_indices) != self.__cache.message_groups_count - 1:
-            self.__cache.message_groups[index_of_main_group].put(message)
+        if len(group_indices) != self._cache.message_groups_count - 1:
+            self._cache.message_groups[index_of_main_group].put(message)
             return
 
         group_indices[-1] = -1
@@ -127,19 +130,19 @@ class Rule:
             for i in range(len(group_indices)):
                 index_of_compared_group = i if i < index_of_main_group else i + 1
                 matched_messages.append(
-                    self.__cache.message_groups[index_of_compared_group].data[message.hash][group_indices[i]])
-            self.__check_and_store_event(matched_messages)
+                    self._cache.message_groups[index_of_compared_group].data[message.hash][group_indices[i]])
+            self._check_and_store_event(matched_messages)
 
-        self.__cache.message_groups[index_of_main_group].put(message)
-        for group in self.__cache.message_groups:
+        self._cache.message_groups[index_of_main_group].put(message)
+        for group in self._cache.message_groups:
             if group.is_cleanable:
                 group.remove(message.hash)
 
-    def __check_and_store_event(self, matched_messages: list):
+    def _check_and_store_event(self, matched_messages: List[ReconMessage], *args, **kwargs):
         for msg in matched_messages:
             msg.is_matched = True
         try:
-            check_event: Event = self.check(matched_messages)
+            check_event: Event = self.check(matched_messages, *args, **kwargs)
         except Exception:
             logger.exception(f"RULE '{self.get_name()}': An exception was caught while running 'check'")
             self.event_store.store_error(rule_event_id=self.rule_event.id,
@@ -165,23 +168,23 @@ class Rule:
 
     def log_groups_size(self):
         res = ""
-        for group in self.__cache.message_groups:
+        for group in self._cache.message_groups:
             res += f"'{group.id}': {group.size} msg, "
         res = "[" + res.strip(" ,") + "]"
         return res
 
     def cache_size(self):
         res = 0
-        for group in self.__cache.message_groups:
+        for group in self._cache.message_groups:
             res += group.size
         return res
 
     def check_no_match_within_timeout(self, actual_time: int):
-        for group in self.__cache.message_groups:
+        for group in self._cache.message_groups:
             group.check_no_match_within_timeout(actual_time, self.match_timeout)
 
     def stop(self):
-        self.__cache.stop()
+        self._cache.stop()
 
     @staticmethod
     def __increment_indices(sizes: list, indices: list) -> bool:
