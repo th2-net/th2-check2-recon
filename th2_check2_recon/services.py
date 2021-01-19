@@ -296,7 +296,7 @@ class Cache(AbstractService):
             self.size = 0
             self.type: MessageGroupType = type
             self.event_store = event_store
-            self.rule_event = rule_event
+            self.rule_event: Event = rule_event
 
             self.is_cleanable = True
             self.data: Dict[int, List[ReconMessage]] = dict()  # {ReconMessage.hash: [ReconMessage]}
@@ -379,5 +379,11 @@ class Cache(AbstractService):
                 while self.data.__contains__(hash_for_remove) and len(self.data[hash_for_remove]) != 0:
                     self.remove(hash_for_remove, cause, remove_all=False)
 
-        def __contains__(self, hash_of_message):
+        def __iter__(self):
+            """Generator that yields all messages in the group"""
+            for recon_mgs_lst in self.data.values():
+                for msg in recon_mgs_lst:
+                    yield msg
+
+        def __contains__(self, hash_of_message: int):
             return hash_of_message in self.data
