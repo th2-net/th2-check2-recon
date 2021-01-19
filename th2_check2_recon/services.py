@@ -156,7 +156,7 @@ class EventStore(AbstractService):
                         f"Timestamp this message: '{message_timestamp:,}' {unit}\n" \
                         f"Timeout: '{timeout:,}' {unit}"
         body = EventUtils.create_event_body(MessageComponent(event_message))
-        attached_message_ids = [recon_message.proto_message.metadata.id]
+        attached_message_ids = self._get_attached_message_ids(recon_message)
         event = EventUtils.create_event(name=name,
                                         body=body,
                                         attached_message_ids=attached_message_ids)
@@ -167,7 +167,7 @@ class EventStore(AbstractService):
         name = f"Remove '{message.proto_message.metadata.message_type}' {message.get_all_info()}"
         event_message += f"\n Message {'not' if not message.is_matched else ''} matched"
         body = EventUtils.create_event_body(MessageComponent(event_message))
-        attached_message_ids = [message.proto_message.metadata.id]
+        attached_message_ids = self._get_attached_message_ids(message)
         event = EventUtils.create_event(name=name,
                                         body=body,
                                         status=EventStatus.SUCCESS if message.is_matched else EventStatus.FAILED,
@@ -178,7 +178,7 @@ class EventStore(AbstractService):
     def store_error(self, rule_event_id: EventID, event_name: str, error_message: str,
                     messages: [ReconMessage] = None):
         body = EventUtils.create_event_body(MessageComponent(error_message))
-        attached_message_ids = [message.proto_message.metadata.id for message in messages]
+        attached_message_ids = self._get_attached_messages_ids(messages)
         event = EventUtils.create_event(name=event_name,
                                         status=EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids,
@@ -198,6 +198,18 @@ class EventStore(AbstractService):
 
     def stop(self):
         self.__events_batch_collector.stop()
+
+    def _get_attached_message_ids(self, recon_msg):
+        try:
+            return [recon_msg.proto_message.metadata.id]
+        except AttributeError:
+            return []
+
+    def _get_attached_messages_ids(self, recon_msgs):
+        try:
+            return [message.proto_message.metadata.id for message in recon_msgs]
+        except AttributeError:
+            return []
 
 
 class MessageComparator(AbstractService):
