@@ -38,11 +38,12 @@ class MessageHandler(AbstractHandler):
             for message in batch.messages:
                 start_time = time.time_ns()
                 self._rule.process(message, attributes)
-                logger.info(f"  Processed '{message.metadata.message_type}'"
-                            f" id='{MessageUtils.str_message_id(message)}'"
-                            f" in {(time.time_ns() - start_time) / 1_000_000} ms")
+                logger.info("  Processed '%s' id='%s' in %s ms",
+                            message.metadata.message_type,
+                            MessageUtils.str_message_id(message),
+                            (time.time_ns() - start_time) / 1_000_000)
 
-            logger.info(f"  Cache size '{self._rule.get_name()}': {self._rule.log_groups_size()}.")
+            logger.info("  Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
         except Exception:
             logger.exception(f'An error occurred while processing the received message. Body: {batch}')
 

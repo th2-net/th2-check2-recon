@@ -30,20 +30,21 @@ class Rule:
 
     def __init__(self, event_store: EventStore, message_comparator: Optional[MessageComparator],
                  cache_size: int, match_timeout: int, configuration) -> None:
-        logger.info(f"Rule '{self.get_name()}' initializing...")
+        self.name = self.get_name()
+        logger.info("Rule '%s' initializing...", self.name)
         self.event_store = event_store
         self.message_comparator = message_comparator
         self.match_timeout = match_timeout
 
         self.rule_event: Event = \
-            EventUtils.create_event(name=self.get_name(),
+            EventUtils.create_event(name=self.name,
                                     parent_id=event_store.root_event.id,
                                     body=EventUtils.create_event_body(MessageComponent(message=self.get_description())))
-        logger.info(f"Created report Event for Rule '{self.get_name()}': {self.rule_event}")
+        logger.info("Created report Event for Rule '%s': %s", self.name, self.rule_event)
         self.event_store.send_parent_event(self.rule_event)
 
         self._cache = Cache(self.description_of_groups(), cache_size, event_store, self.rule_event)
-        logger.info(f"Rule '{self.get_name()}' initialized")
+        logger.info("Rule '%s' initialized", self.name)
         self.configure(configuration)  # Do not raise this line up because all the variables above must be available in the self.configure function
 
     @abstractmethod
@@ -93,7 +94,7 @@ class Rule:
 
         self.group(message, attributes, *args, **kwargs)
         if message.group_id is None:
-            logger.info(f"RULE '{self.get_name()}': Ignored  {message.get_all_info()}")
+            logger.info("RULE '%s': Ignored  %s", self.name, message.get_all_info())
             return
 
         self.hash(message, attributes, *args, **kwargs)
@@ -105,7 +106,7 @@ class Rule:
                             F" - available groups: {self.description_of_groups()}\n"
                             F" - message.group_id: {message.group_id}")
         else:
-            logger.info(f"RULE '{self.get_name()}': Received {message.get_all_info()}")
+            logger.info("RULE '%s': Received %s", self.name, message.get_all_info())
 
         group_indices = []
         group_sizes = []
@@ -144,7 +145,7 @@ class Rule:
         try:
             check_event: Event = self.check(matched_messages, *args, **kwargs)
         except Exception:
-            logger.exception(f"RULE '{self.get_name()}': An exception was caught while running 'check'")
+            logger.exception(f"RULE '{self.name}': An exception was caught while running 'check'")
             self.event_store.store_error(rule_event_id=self.rule_event.id,
                                          event_name="An exception was caught while running 'check'",
                                          error_message=traceback.format_exc(),
