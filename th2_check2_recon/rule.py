@@ -160,9 +160,7 @@ class Rule:
 
         if max_timestamp_msg.timestamp - min_timestamp_msg.timestamp > self.match_timeout:
             self.event_store.store_matched_out_of_timeout(rule_event_id=self.rule_event.id,
-                                                          check_event=check_event,
-                                                          min_time=min_timestamp_msg.timestamp,
-                                                          max_time=max_timestamp_msg.timestamp)
+                                                          check_event=check_event)
         else:
             self.event_store.store_matched(rule_event_id=self.rule_event.id,
                                            check_event=check_event)

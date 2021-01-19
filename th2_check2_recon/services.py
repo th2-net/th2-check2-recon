@@ -186,8 +186,7 @@ class EventStore(AbstractService):
         logger.info("Create '%s' Event for rule Event '%s'", self.ERRORS, rule_event_id)
         self.send_event(event, rule_event_id, self.ERRORS)
 
-    def store_matched_out_of_timeout(self, rule_event_id: EventID, check_event: Event,
-                                     min_time, max_time):
+    def store_matched_out_of_timeout(self, rule_event_id: EventID, check_event: Event):
         self.send_event(check_event, rule_event_id, self.MATCHED_OUT_OF_TIMEOUT)
 
     def store_matched(self, rule_event_id: EventID, check_event: Event):
