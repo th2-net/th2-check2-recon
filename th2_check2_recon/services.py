@@ -137,19 +137,18 @@ class EventStore(AbstractService):
     def store_no_match_within_timeout(self, rule_event_id: EventID, recon_message: ReconMessage,
                                       actual_timestamp: int, timeout: int):
         name = f'{recon_message.get_all_info()}'
-        message_timestamp = MessageUtils.get_timestamp_ns(recon_message.proto_message)
 
         units = ['sec', 'ms', 'mcs', 'ns']
         factor_units = [1_000_000_000, 1_000_000, 1_000, 1]
         units_idx = 0
         while actual_timestamp % factor_units[units_idx] != 0 \
-                or message_timestamp % factor_units[units_idx] != 0 \
+                or recon_message.timestamp % factor_units[units_idx] != 0 \
                 or timeout % factor_units[units_idx] != 0:
             units_idx += 1
 
         unit = units[units_idx]
         actual_timestamp = int(actual_timestamp / factor_units[units_idx])
-        message_timestamp = int(message_timestamp / factor_units[units_idx])
+        message_timestamp = int(recon_message.timestamp / factor_units[units_idx])
         timeout = int(timeout / factor_units[units_idx])
 
         event_message = f"Timestamp of the last received message: '{actual_timestamp:,}' {unit}\n" \
