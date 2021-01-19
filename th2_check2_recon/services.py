@@ -163,7 +163,7 @@ class EventStore(AbstractService):
         self.send_event(event, rule_event_id, self.NO_MATCH_WITHIN_TIMEOUT)
 
     def store_no_match(self, rule_event_id: EventID, message: ReconMessage, event_message: str):
-        name = f"Remove '{message.proto_message.metadata.message_type}' {message.get_all_info()}"
+        name = f"Remove {message.get_all_info()}"
         event_message += f"\n Message {'not' if not message.is_matched else ''} matched"
         body = EventUtils.create_event_body(MessageComponent(event_message))
         attached_message_ids = self._get_attached_message_ids(message)
