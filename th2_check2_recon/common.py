@@ -70,9 +70,19 @@ class MessageUtils:
 
     @staticmethod
     def str_message_id(message: Message) -> str:
-        res = str(message.metadata.id.connection_id.session_alias) + ':'
-        res += str(Direction.Name(message.metadata.id.direction)) + ':'
-        res += str(message.metadata.id.sequence)
+        res = ""
+        try:
+            res += str(message.metadata.id.connection_id.session_alias) + ':'
+        except AttributeError:
+            res += "None:"
+        try:
+            res += str(Direction.Name(message.metadata.id.direction)) + ':'
+        except AttributeError:
+            res += "None:"
+        try:
+            res += str(message.metadata.id.sequence)
+        except AttributeError:
+            res += "None"
         return res
 
 
