@@ -310,13 +310,11 @@ class Cache(AbstractService):
                     self.remove(message.hash, cause)
 
                 self.data.setdefault(message.hash, []).append(message)
-
                 self.hash_by_sorted_timestamp.setdefault(message.timestamp, []).append(message.hash)
-
                 self.size += 1
             else:
                 timestamp_for_remove = self.hash_by_sorted_timestamp.keys().__iter__().__next__()
-                hash_for_remove = self.hash_by_sorted_timestamp[timestamp_for_remove].__iter__().__next__()
+                hash_for_remove = self.hash_by_sorted_timestamp[timestamp_for_remove][0]
                 cause = f"The message was deleted because there was no free space in the message group '{self.id}'"
                 self.remove(hash_for_remove, cause, remove_all=False)
                 self.put(message)
@@ -337,7 +335,7 @@ class Cache(AbstractService):
                     if timestamp < lower_bound_timestamp:
                         old_timestamps.append(timestamp)
             for old_timestamp in old_timestamps:
-                old_hash = self.hash_by_sorted_timestamp[old_timestamp].__iter__().__next__()
+                old_hash = self.hash_by_sorted_timestamp[old_timestamp][0]
                 for recon_message in self.data[old_hash]:
                     if not recon_message.is_matched and not recon_message.is_check_no_match_within_timeout:
                         recon_message.is_check_no_match_within_timeout = True
@@ -355,7 +353,7 @@ class Cache(AbstractService):
                     self.size -= 1
                 del self.data[hash_of_message]
             else:
-                message_for_remove = self.data[hash_of_message].__iter__().__next__()
+                message_for_remove = self.data[hash_of_message][0]
                 timestamp_for_remove = message_for_remove.timestamp
 
                 self.data[hash_of_message].remove(message_for_remove)
