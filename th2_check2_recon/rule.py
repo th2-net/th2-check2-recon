@@ -15,7 +15,7 @@
 import logging
 import traceback
 from abc import abstractmethod
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Dict
 
 from th2_grpc_common.common_pb2 import Event, Message
 from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils
@@ -44,6 +44,12 @@ class Rule:
         self.event_store.send_parent_event(self.rule_event)
 
         self._cache = Cache(self.description_of_groups(), cache_size, event_store, self.rule_event)
+
+        self.compared_groups: Dict[str, tuple] = {}  # {ReconMessage.group_id: (Cache.MessageGroup, ..)}
+        for group_id in self.description_of_groups():
+            self.compared_groups[group_id] = tuple(
+                mg for mg in self._cache.message_groups if mg.id != group_id)
+
         logger.info("Rule '%s' initialized", self.name)
         self.configure(configuration)  # Do not raise this line up because all the variables above must be available in the self.configure function
 
@@ -111,19 +117,13 @@ class Rule:
         group_indices = []
         group_sizes = []
 
-        for index_of_compared_group in range(self.__cache.message_groups_count):
-            if index_of_compared_group == index_of_main_group:
-                continue
-            compared_group: Cache.MessageGroup = self.__cache.message_groups[index_of_compared_group]
-            if not compared_group.contains(message.hash):
-                break
+        # Check if each group has messages with compared hash else put the message to cache
+        for compared_group in self.compared_groups[message.group_id]:
+            if message.hash not in compared_group:
+                self._cache.message_groups[index_of_main_group].put(message)
+                return
             group_indices.append(0)
             group_sizes.append(len(compared_group.get(message.hash)))
-
-        # Check if each group has messages with compared hash
-        if len(group_indices) != self._cache.message_groups_count - 1:
-            self._cache.message_groups[index_of_main_group].put(message)
-            return
 
         group_indices[-1] = -1
         while self.__increment_indices(group_sizes, group_indices):
@@ -132,10 +132,9 @@ class Rule:
                 index_of_compared_group = i if i < index_of_main_group else i + 1
                 matched_messages.append(
                     self._cache.message_groups[index_of_compared_group].data[message.hash][group_indices[i]])
-            self._check_and_store_event(matched_messages)
+            self._check_and_store_event(matched_messages, *args, **kwargs)
 
-        self._cache.message_groups[index_of_main_group].put(message)
-        for group in self._cache.message_groups:
+        for group in self.compared_groups[message.group_id]:
             if group.is_cleanable:
                 group.remove(message.hash)
 
