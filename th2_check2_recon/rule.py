@@ -43,12 +43,12 @@ class Rule:
         logger.info("Created report Event for Rule '%s': %s", self.name, self.rule_event)
         self.event_store.send_parent_event(self.rule_event)
 
-        self._cache = Cache(self.description_of_groups(), cache_size, event_store, self.rule_event)
+        self.__cache = Cache(self.description_of_groups(), cache_size, event_store, self.rule_event)
 
         self.compared_groups: Dict[str, tuple] = {}  # {ReconMessage.group_id: (Cache.MessageGroup, ..)}
         for group_id in self.description_of_groups():
             self.compared_groups[group_id] = tuple(
-                mg for mg in self._cache.message_groups if mg.id != group_id)
+                mg for mg in self.__cache.message_groups if mg.id != group_id)
 
         logger.info("Rule '%s' initialized", self.name)
         self.configure(configuration)  # Do not raise this line up because all the variables above must be available in the self.configure function
@@ -92,9 +92,6 @@ class Rule:
         return MessageHandler(self)
 
     def process(self, proto_message: Message, attributes: tuple, *args, **kwargs):
-        self._process(proto_message, attributes, *args, **kwargs)
-
-    def _process(self, proto_message: Message, attributes: tuple, *args, **kwargs):
         message = ReconMessage(proto_message=proto_message)
         self.check_no_match_within_timeout(message.timestamp)
 
@@ -105,7 +102,7 @@ class Rule:
 
         self.hash(message, attributes, *args, **kwargs)
 
-        index_of_main_group = self._cache.index_of_group(message.group_id)
+        index_of_main_group = self.__cache.index_of_group(message.group_id)
         if index_of_main_group == -1:
             raise Exception(F"'group' method set incorrect groups.\n"
                             F" - message: {message.get_all_info()}\n"
@@ -120,7 +117,7 @@ class Rule:
         # Check if each group has messages with compared hash else put the message to cache
         for compared_group in self.compared_groups[message.group_id]:
             if message.hash not in compared_group:
-                self._cache.message_groups[index_of_main_group].put(message)
+                self.__cache.message_groups[index_of_main_group].put(message)
                 return
             group_indices.append(0)
             group_sizes.append(len(compared_group.get(message.hash)))
@@ -131,14 +128,14 @@ class Rule:
             for i in range(len(group_indices)):
                 index_of_compared_group = i if i < index_of_main_group else i + 1
                 matched_messages.append(
-                    self._cache.message_groups[index_of_compared_group].data[message.hash][group_indices[i]])
-            self._check_and_store_event(matched_messages, *args, **kwargs)
+                    self.__cache.message_groups[index_of_compared_group].data[message.hash][group_indices[i]])
+            self.__check_and_store_event(matched_messages, *args, **kwargs)
 
         for group in self.compared_groups[message.group_id]:
             if group.is_cleanable:
                 group.remove(message.hash)
 
-    def _check_and_store_event(self, matched_messages: List[ReconMessage], *args, **kwargs):
+    def __check_and_store_event(self, matched_messages: List[ReconMessage], *args, **kwargs):
         for msg in matched_messages:
             msg.is_matched = True
         try:
@@ -166,23 +163,23 @@ class Rule:
 
     def log_groups_size(self):
         res = ""
-        for group in self._cache.message_groups:
+        for group in self.__cache.message_groups:
             res += f"'{group.id}': {group.size} msg, "
         res = "[" + res.strip(" ,") + "]"
         return res
 
     def cache_size(self):
         res = 0
-        for group in self._cache.message_groups:
+        for group in self.__cache.message_groups:
             res += group.size
         return res
 
     def check_no_match_within_timeout(self, actual_time: int):
-        for group in self._cache.message_groups:
+        for group in self.__cache.message_groups:
             group.check_no_match_within_timeout(actual_time, self.match_timeout)
 
     def stop(self):
-        self._cache.stop()
+        self.__cache.stop()
 
     @staticmethod
     def __increment_indices(sizes: list, indices: list) -> bool:
