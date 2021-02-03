@@ -15,5 +15,5 @@
 
 sortedcollections==1.2.1
 twine==3.2.0
-th2-grpc-util==2.3.2
-th2-common==2.2.11
+th2-grpc-util>=2.3.2
+th2-common==2.3.2
