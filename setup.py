@@ -25,6 +25,9 @@ package_version = package_info['package_version']
 with open('README.md', 'r') as file:
     long_description = file.read()
 
+with open('requirements.txt', 'r') as file:
+    requirements = [l.strip() for l in file.readlines() if not l.startswith('#') and l != '\n']
+
 setup(
     name=package_name,
     version=package_version,
@@ -36,11 +39,8 @@ setup(
     url='https://github.com/th2-net/th2-check2-recon',
     license='Apache License 2.0',
     python_requires='>=3.7',
-    install_requires=[
-        'sortedcollections==1.2.1',
-        'th2-grpc-util==2.3.2',
-        'th2-common==2.2.3'
-    ],
-    packages=[''] + find_packages(include=['th2_check2_recon', 'th2_check2_recon.*']),
-    package_data={'': ['package_info.json']}
+    install_requires=requirements,
+    packages=find_packages(include=['th2_check2_recon', 'th2_check2_recon.*']),
+    package_data={'': ['package_info.json']},
+    include_package_data=True,
 )

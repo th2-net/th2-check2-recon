@@ -20,6 +20,9 @@ from th2_check2_recon.common import MessageUtils
 
 
 class ReconMessage:
+    __slots__ = ("proto_message", "group_info", "group_id", "hash_info", "hash", "is_matched",
+                 "is_check_no_match_within_timeout", "_timestamp")
+
     def __init__(self, proto_message: Message) -> None:
         self.proto_message = proto_message
         self.group_info = dict()
@@ -29,6 +32,14 @@ class ReconMessage:
         self.is_matched = False
         self.is_check_no_match_within_timeout = False
 
+    @property
+    def timestamp(self):
+        try:
+            return self._timestamp
+        except AttributeError:
+            self._timestamp = MessageUtils.get_timestamp_ns(self.proto_message)
+            return self._timestamp
+
     @staticmethod
     def get_info(info_dict: dict) -> str:
         message = ""
@@ -37,8 +48,11 @@ class ReconMessage:
         return '[' + message.strip(' ,') + ']'
 
     def get_all_info(self) -> str:
-        result = f"'{self.proto_message.metadata.message_type}' " \
-                 f"id='{MessageUtils.str_message_id(self.proto_message)}'"
+        result = f"id='{MessageUtils.str_message_id(self.proto_message)}'"
+        try:
+            result = f"'{self.proto_message.metadata.message_type}' " + result
+        except AttributeError:
+            result = 'None type ' + result
         if self.hash is not None:
             result += f" Hash='{self.hash}'"
         if self.group_id is not None:
@@ -48,6 +62,11 @@ class ReconMessage:
         if len(self.group_info) > 0:
             result += f' GroupID{self.get_info(self.group_info)}'
         return result
+
+
+def _get_msg_timestamp(msg: ReconMessage):
+    """Used instead of lambda in Rule.__check_and_store_event"""
+    return msg.timestamp
 
 
 class MessageGroupType(Enum):
