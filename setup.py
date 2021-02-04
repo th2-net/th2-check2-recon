@@ -41,6 +41,5 @@ setup(
     python_requires='>=3.7',
     install_requires=requirements,
     packages=find_packages(include=['th2_check2_recon', 'th2_check2_recon.*']),
-    package_data={'': ['package_info.json']},
     include_package_data=True,
 )
