@@ -23,7 +23,7 @@ from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, 
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
     CompareMessageVsMessageTask, CompareMessageVsMessageResult
 
-from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils, VerificationComponent
+from th2_check2_recon.common import EventUtils, MessageComponent, VerificationComponent
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
 
 logger = logging.getLogger()
@@ -298,7 +298,8 @@ class Cache(AbstractService):
 
             self.is_cleanable = True
             self.data: Dict[int, List[ReconMessage]] = dict()  # {ReconMessage.hash: [ReconMessage]}
-            self.hash_by_sorted_timestamp: Dict[int, List[int]] = sortedcollections.SortedDict()  # {timestamp: [ReconMessage.hash]}
+            self.hash_by_sorted_timestamp: Dict[
+                int, List[int]] = sortedcollections.SortedDict()  # {timestamp: [ReconMessage.hash]}
 
         def put(self, message: ReconMessage):
             if self.size < self.capacity:

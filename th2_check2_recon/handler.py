@@ -1,4 +1,4 @@
-# Copyright 2020-2020 Exactpro (Exactpro Systems Limited)
+# Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +16,9 @@ import logging
 import time
 from abc import ABC, abstractmethod
 
-from th2_grpc_common.common_pb2 import MessageBatch
 from th2_common.schema.message.message_listener import MessageListener
+from th2_grpc_common.common_pb2 import MessageBatch
+
 from th2_check2_recon.common import MessageUtils
 
 logger = logging.getLogger()

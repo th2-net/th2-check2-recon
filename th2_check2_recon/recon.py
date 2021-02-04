@@ -1,4 +1,4 @@
-# Copyright 2020-2020 Exactpro (Exactpro Systems Limited)
+# Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,9 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import asyncio
 import importlib
 import logging
+from typing import Optional
 
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_common.schema.message.message_router import MessageRouter
@@ -21,7 +23,6 @@ from th2_common.schema.message.message_router import MessageRouter
 from th2_check2_recon.configuration import ReconConfiguration
 from th2_check2_recon.rule import Rule
 from th2_check2_recon.services import EventStore, AbstractService
-from typing import Optional
 
 logger = logging.getLogger()
 
