@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-sortedcollections==1.2.1
-twine==3.2.0
-th2-grpc-util>=2.3.2
-th2-common==2.3.2
+sortedcollections==2.1.0
+th2-grpc-util==2.3.3
+th2-common==2.3.3.dev567751458
