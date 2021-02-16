@@ -15,4 +15,4 @@
 
 sortedcollections==2.1.0
 th2-grpc-util==2.3.4
-th2-common==2.3.3.dev570975494
+th2-common==3.0.0.dev570965645
