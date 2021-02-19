@@ -11,3 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from importlib.metadata import version
+
+print(f"Use th2_check2_recon=={version('th2_check2_recon')}")

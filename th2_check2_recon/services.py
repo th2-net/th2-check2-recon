@@ -342,7 +342,7 @@ class Cache(AbstractService):
                                                                        actual_timestamp, timeout)
 
         def remove(self, hash_of_message: int, cause="", remove_all=True):
-            message_for_remove: ReconMessage
+            message_for_remove = None
             if remove_all:
                 for message_for_remove in self.data[hash_of_message]:
                     timestamp_for_remove = message_for_remove.timestamp
