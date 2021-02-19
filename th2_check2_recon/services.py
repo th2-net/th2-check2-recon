@@ -23,7 +23,7 @@ from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, 
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
     CompareMessageVsMessageTask, CompareMessageVsMessageResult
 
-from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils, VerificationComponent
+from th2_check2_recon.common import EventUtils, MessageComponent, VerificationComponent
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
 
 logger = logging.getLogger()
@@ -260,7 +260,7 @@ class Cache(AbstractService):
                                capacity=cache_size,
                                type=message_group_types[message_group_id],
                                event_store=event_store,
-                               rule_event=self.rule_event)
+                               parent_event=self.rule_event)
             for message_group_id in message_group_types.keys()]
 
         multi_cnt = 0
@@ -283,22 +283,24 @@ class Cache(AbstractService):
 
     def stop(self):
         for group in self.message_groups:
-            group.clear()
+            if group.type != MessageGroupType.shared:
+                group.clear()
 
     class MessageGroup:
 
         def __init__(self, id: str, capacity: int, type: MessageGroupType, event_store: EventStore,
-                     rule_event: Event) -> None:
+                     parent_event: Event) -> None:
             self.id = id
             self.capacity = capacity
             self.size = 0
             self.type: MessageGroupType = type
             self.event_store = event_store
-            self.rule_event: Event = rule_event
+            self.parent_event: Event = parent_event
 
-            self.is_cleanable = True
+            self.is_cleanable = True if type != MessageGroupType.shared else False
             self.data: Dict[int, List[ReconMessage]] = dict()  # {ReconMessage.hash: [ReconMessage]}
-            self.hash_by_sorted_timestamp: Dict[int, List[int]] = sortedcollections.SortedDict()  # {timestamp: [ReconMessage.hash]}
+            self.hash_by_sorted_timestamp: Dict[
+                int, List[int]] = sortedcollections.SortedDict()  # {timestamp: [ReconMessage.hash]}
 
         def put(self, message: ReconMessage):
             if self.size < self.capacity:
@@ -337,7 +339,7 @@ class Cache(AbstractService):
                 for recon_message in self.data[old_hash]:
                     if not recon_message.is_matched and not recon_message.is_check_no_match_within_timeout:
                         recon_message.is_check_no_match_within_timeout = True
-                        self.event_store.store_no_match_within_timeout(self.rule_event.id, recon_message,
+                        self.event_store.store_no_match_within_timeout(self.parent_event.id, recon_message,
                                                                        actual_timestamp, timeout)
 
         def remove(self, hash_of_message: int, cause="", remove_all=True):
@@ -364,7 +366,7 @@ class Cache(AbstractService):
                 self.size -= 1
 
             if len(cause) != 0:
-                self.event_store.store_no_match(rule_event_id=self.rule_event.id,
+                self.event_store.store_no_match(rule_event_id=self.parent_event.id,
                                                 message=message_for_remove,
                                                 event_message=cause)
 
