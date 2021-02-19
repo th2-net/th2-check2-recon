@@ -22,7 +22,6 @@ from th2_common.schema.message.message_router import MessageRouter
 
 from th2_check2_recon.configuration import ReconConfiguration
 from th2_check2_recon.reconcommon import MessageGroupType, ReconMessage
-from th2_check2_recon.rule import Rule
 from th2_check2_recon.services import EventStore, AbstractService
 
 logger = logging.getLogger()
@@ -70,7 +69,7 @@ class Recon:
             self.__loop.close()
             logger.info('Recon stopped!')
 
-    def __load_rules(self) -> [Rule]:
+    def __load_rules(self):
         logger.info('Try load rules')
         rules_package = importlib.import_module(self.__config.rules_package_path)
         loaded_rules = []
