@@ -265,12 +265,12 @@ class Cache(AbstractService):
 
         multi_cnt = 0
         for group in self.message_groups:
-            if group.type == MessageGroupType.multi:
+            if MessageGroupType.multi in group.type:
                 multi_cnt += 1
 
         for group in self.message_groups:
             if multi_cnt == 1:
-                if group.type == MessageGroupType.single:
+                if MessageGroupType.single in group.type:
                     group.is_cleanable = False
             elif multi_cnt > 1:
                 group.is_cleanable = False
@@ -283,28 +283,27 @@ class Cache(AbstractService):
 
     def stop(self):
         for group in self.message_groups:
-            if group.type != MessageGroupType.shared:
-                group.clear()
+            group.clear()
 
     class MessageGroup:
 
-        def __init__(self, id: str, capacity: int, type: MessageGroupType, event_store: EventStore,
+        def __init__(self, id: str, capacity: int, type: {MessageGroupType}, event_store: EventStore,
                      parent_event: Event) -> None:
             self.id = id
             self.capacity = capacity
             self.size = 0
-            self.type: MessageGroupType = type
+            self.type: {MessageGroupType} = type
             self.event_store = event_store
             self.parent_event: Event = parent_event
 
-            self.is_cleanable = True if type != MessageGroupType.shared else False
+            self.is_cleanable = True
             self.data: Dict[int, List[ReconMessage]] = dict()  # {ReconMessage.hash: [ReconMessage]}
             self.hash_by_sorted_timestamp: Dict[
                 int, List[int]] = sortedcollections.SortedDict()  # {timestamp: [ReconMessage.hash]}
 
         def put(self, message: ReconMessage):
             if self.size < self.capacity:
-                if self.contains(message.hash) and self.type == MessageGroupType.single:
+                if self.contains(message.hash) and MessageGroupType.single in self.type:
                     cause = f"The message was deleted because a new one came with the same hash '{message.hash}' " \
                             f"in message group '{self.id}'"
                     self.remove(message.hash, cause)

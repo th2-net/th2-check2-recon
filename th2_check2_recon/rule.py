@@ -73,8 +73,8 @@ class Rule:
     @abstractmethod
     def description_of_groups(self) -> dict:
         """
-            Return dictionary whose key is 'group_id', and value is 'type'.
-            Type can be MessageGroupType.single or MessageGroupType.multi .
+            Return dictionary whose key is 'group_id', and value is set of 'type'.
+            Type can be MessageGroupType.single or MessageGroupType.multi, or MessageGroupType.shared.
         """
         pass
 
