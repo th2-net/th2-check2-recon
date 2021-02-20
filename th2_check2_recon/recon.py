@@ -87,5 +87,5 @@ class Recon:
     def put_shared_message(self, shared_group_id: str, message: ReconMessage, attributes: tuple):
         for rule in self.rules:
             groups = rule.description_of_groups()
-            if shared_group_id in groups.keys() and groups[shared_group_id] == MessageGroupType.shared:
+            if shared_group_id in groups.keys() and MessageGroupType.shared in groups[shared_group_id]:
                 rule.process(message, attributes)
