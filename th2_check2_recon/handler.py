@@ -1,4 +1,4 @@
-# Copyright 2020-2020 Exactpro (Exactpro Systems Limited)
+# Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,9 +16,11 @@ import logging
 import time
 from abc import ABC, abstractmethod
 
-from th2_grpc_common.common_pb2 import MessageBatch
 from th2_common.schema.message.message_listener import MessageListener
+from th2_grpc_common.common_pb2 import MessageBatch
+
 from th2_check2_recon.common import MessageUtils
+from th2_check2_recon.reconcommon import ReconMessage
 
 logger = logging.getLogger()
 
@@ -35,19 +37,16 @@ class AbstractHandler(MessageListener, ABC):
 class MessageHandler(AbstractHandler):
     def handler(self, attributes: tuple, batch: MessageBatch):
         try:
-            for message in batch.messages:
+            for proto_message in batch.messages:
                 start_time = time.time_ns()
+                message = ReconMessage(proto_message=proto_message)
                 self._rule.process(message, attributes)
                 logger.info("  Processed '%s' id='%s' in %s ms",
-                            message.metadata.message_type,
-                            MessageUtils.str_message_id(message),
+                            proto_message.metadata.message_type,
+                            MessageUtils.str_message_id(proto_message),
                             (time.time_ns() - start_time) / 1_000_000)
 
             logger.info("  Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
         except Exception:
-            logger.exception(f'An error occurred while processing the received message. Body: {batch}')
-
-
-class EventHandler(AbstractHandler):
-    def handler(self, attributes: tuple, batch):
-        pass
+            logger.exception(f'Rule: {self._rule.get_name()}. '
+                             f'An error occurred while processing the received message. Body: {batch}')
