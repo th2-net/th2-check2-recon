@@ -48,4 +48,5 @@ class MessageHandler(AbstractHandler):
 
             logger.info("  Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
         except Exception:
-            logger.exception(f'An error occurred while processing the received message. Body: {batch}')
+            logger.exception(f'Rule: {self._rule.get_name()}. '
+                             f'An error occurred while processing the received message. Body: {batch}')
