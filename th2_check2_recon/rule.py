@@ -23,7 +23,7 @@ from th2_check2_recon.common import EventUtils, MessageComponent
 from th2_check2_recon.handler import MessageHandler, AbstractHandler
 from th2_check2_recon.recon import Recon
 from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp
-from th2_check2_recon.services import Cache
+from th2_check2_recon.services import Cache, MessageComparator
 
 logger = logging.getLogger()
 
@@ -36,7 +36,7 @@ class Rule:
 
         self.recon = recon
         self.event_store = recon.event_store
-        self.message_comparator = recon.message_comparator
+        self.message_comparator: Optional[MessageComparator] = recon.message_comparator
         self.match_timeout = match_timeout
 
         self.rule_event: Event = \
