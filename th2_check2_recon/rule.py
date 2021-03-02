@@ -1,4 +1,4 @@
-# Copyright 2020-2020 Exactpro (Exactpro Systems Limited)
+# Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,47 +11,52 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 import logging
 import traceback
 from abc import abstractmethod
-from typing import Tuple, List, Optional, Dict
+from typing import List, Optional, Dict
 
-from th2_grpc_common.common_pb2 import Event, Message
-from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils
+from th2_grpc_common.common_pb2 import Event
+
+from th2_check2_recon.common import EventUtils, MessageComponent
 from th2_check2_recon.handler import MessageHandler, AbstractHandler
-from th2_check2_recon.services import EventStore, MessageComparator, Cache
+from th2_check2_recon.recon import Recon
 from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp
+from th2_check2_recon.services import Cache, MessageComparator
 
 logger = logging.getLogger()
 
 
 class Rule:
 
-    def __init__(self, event_store: EventStore, message_comparator: Optional[MessageComparator],
-                 cache_size: int, match_timeout: int, configuration) -> None:
+    def __init__(self, recon: Recon, cache_size: int, match_timeout: int, configuration) -> None:
         self.name = self.get_name()
         logger.info("Rule '%s' initializing...", self.name)
-        self.event_store = event_store
-        self.message_comparator = message_comparator
+
+        self.recon = recon
+        self.event_store = recon.event_store
+        self.message_comparator: Optional[MessageComparator] = recon.message_comparator
         self.match_timeout = match_timeout
 
         self.rule_event: Event = \
             EventUtils.create_event(name=self.name,
-                                    parent_id=event_store.root_event.id,
+                                    parent_id=recon.event_store.root_event.id,
                                     body=EventUtils.create_event_body(MessageComponent(message=self.get_description())))
         logger.info("Created report Event for Rule '%s': %s", self.name, self.rule_event)
         self.event_store.send_parent_event(self.rule_event)
 
-        self.__cache = Cache(self.description_of_groups(), cache_size, event_store, self.rule_event)
+        self.__cache = Cache(self.description_of_groups_bridge(), cache_size, self.event_store, self.rule_event)
 
         self.compared_groups: Dict[str, tuple] = {}  # {ReconMessage.group_id: (Cache.MessageGroup, ..)}
-        for group_id in self.description_of_groups():
+        for group_id in self.description_of_groups_bridge():
             self.compared_groups[group_id] = tuple(
                 mg for mg in self.__cache.message_groups if mg.id != group_id)
 
         logger.info("Rule '%s' initialized", self.name)
-        self.configure(configuration)  # Do not raise this line up because all the variables above must be available in the self.configure function
+
+        # Do not raise this line up because all the variables above must be available in the self.configure function
+        self.configure(configuration)
 
     @abstractmethod
     def get_name(self) -> str:
@@ -68,10 +73,19 @@ class Rule:
     @abstractmethod
     def description_of_groups(self) -> dict:
         """
-            Return dictionary whose key is 'group_id', and value is 'type'.
-            Type can be MessageGroupType.single or MessageGroupType.multi .
+            Returns a dictionary whose key is group_id and whose value is type or a set of type.
+            Type can be MessageGroupType.single or MessageGroupType.multi, or MessageGroupType.shared.
         """
         pass
+
+    def description_of_groups_bridge(self) -> dict:
+        result = dict()
+        for (key, value) in self.description_of_groups().items():
+            if type(value) is not set:
+                result[key] = {value}
+            else:
+                result[key] = value
+        return result
 
     @abstractmethod
     def group(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
@@ -82,7 +96,7 @@ class Rule:
         pass
 
     @abstractmethod
-    def check(self, messages: [ReconMessage], *args, **kwargs) -> Optional[Event]:
+    def check(self, messages: [ReconMessage], attributes: tuple, *args, **kwargs) -> Optional[Event]:
         pass
 
     def configure(self, configuration):
@@ -91,8 +105,12 @@ class Rule:
     def get_listener(self) -> AbstractHandler:
         return MessageHandler(self)
 
-    def process(self, proto_message: Message, attributes: tuple, *args, **kwargs):
-        message = ReconMessage(proto_message=proto_message)
+    def put_shared_message(self, shared_group_id: str, message: ReconMessage, attributes: tuple):
+        new_message = copy.deepcopy(message)
+        new_message.group_id = shared_group_id
+        self.recon.put_shared_message(shared_group_id, new_message, attributes)
+
+    def process(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         self.check_no_match_within_timeout(message.timestamp)
 
         self.group(message, attributes, *args, **kwargs)
@@ -106,7 +124,7 @@ class Rule:
         if index_of_main_group == -1:
             raise Exception(F"'group' method set incorrect groups.\n"
                             F" - message: {message.get_all_info()}\n"
-                            F" - available groups: {self.description_of_groups()}\n"
+                            F" - available groups: {self.description_of_groups_bridge()}\n"
                             F" - message.group_id: {message.group_id}")
         else:
             logger.info("RULE '%s': Received %s", self.name, message.get_all_info())
@@ -129,17 +147,17 @@ class Rule:
                 index_of_compared_group = i if i < index_of_main_group else i + 1
                 matched_messages.append(
                     self.__cache.message_groups[index_of_compared_group].data[message.hash][group_indices[i]])
-            self.__check_and_store_event(matched_messages, *args, **kwargs)
+            self.__check_and_store_event(matched_messages, attributes, *args, **kwargs)
 
         for group in self.compared_groups[message.group_id]:
             if group.is_cleanable:
                 group.remove(message.hash)
 
-    def __check_and_store_event(self, matched_messages: List[ReconMessage], *args, **kwargs):
+    def __check_and_store_event(self, matched_messages: List[ReconMessage], attributes: tuple, *args, **kwargs):
         for msg in matched_messages:
             msg.is_matched = True
         try:
-            check_event: Event = self.check(matched_messages, *args, **kwargs)
+            check_event: Event = self.check(matched_messages, attributes, *args, **kwargs)
         except Exception:
             logger.exception(f"RULE '{self.name}': An exception was caught while running 'check'")
             self.event_store.store_error(rule_event_id=self.rule_event.id,

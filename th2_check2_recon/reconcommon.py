@@ -1,4 +1,4 @@
-# Copyright 2020-2020 Exactpro (Exactpro Systems Limited)
+# Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,6 @@
 
 from enum import Enum
 
-from th2_grpc_common.common_pb2 import Message
-
 from th2_check2_recon.common import MessageUtils
 
 
@@ -23,7 +21,7 @@ class ReconMessage:
     __slots__ = ("proto_message", "group_info", "group_id", "hash_info", "hash", "is_matched",
                  "is_check_no_match_within_timeout", "_timestamp")
 
-    def __init__(self, proto_message: Message) -> None:
+    def __init__(self, proto_message) -> None:
         self.proto_message = proto_message
         self.group_info = dict()
         self.group_id = None
@@ -72,3 +70,4 @@ def _get_msg_timestamp(msg: ReconMessage):
 class MessageGroupType(Enum):
     single = 1
     multi = 2
+    shared = 3
