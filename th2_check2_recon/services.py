@@ -22,7 +22,7 @@ from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, Message
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
     CompareMessageVsMessageTask, CompareMessageVsMessageResult
-
+from th2_grpc_util.util_service import MessageComparatorService
 from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils, VerificationComponent
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
 
@@ -213,7 +213,7 @@ class EventStore(AbstractService):
 class MessageComparator(AbstractService):
 
     def __init__(self, comparator_service) -> None:
-        self.__comparator_service = comparator_service
+        self.__comparator_service: MessageComparatorService = comparator_service
 
     def compare(self, expected: Message, actual: Message,
                 settings: ComparisonSettings) -> CompareMessageVsMessageResult:
@@ -228,8 +228,10 @@ class MessageComparator(AbstractService):
             compare_response = self.__comparator_service.compareMessageVsMessage(request)
             for compare_result in compare_response.comparison_results:  # TODO  fix it
                 return compare_result
-        except Exception:
-            logger.exception(f'Error while comparing. CompareMessageVsMessageRequest: {request}')
+        except Exception as e:
+            logger.exception(f'Error while comparing. CompareMessageVsMessageRequest: {request}\n'
+                             f'Original exception: {e}')
+            raise
 
     def compare_messages(self, messages: [ReconMessage],
                          ignore_fields: [str] = None) -> Optional[VerificationComponent]:
