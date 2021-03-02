@@ -364,11 +364,15 @@ class Cache(AbstractService):
                     del self.hash_by_sorted_timestamp[timestamp_for_remove]
                 self.size -= 1
 
-            # Commented out because there are too many events published.
-            # if len(cause) != 0:
-            #     self.event_store.store_no_match(rule_event_id=self.parent_event.id,
-            #                                     message=message_for_remove,
-            #                                     event_message=cause)
+            if len(cause) != 0:
+                info_str = f'Remove {message_for_remove.get_all_info()}.'
+                info_str += f" Message {'not' if not message_for_remove.is_matched else ''} matched"
+                logger.info(info_str)
+
+        #       Commented out because there are too many events published.
+        #       self.event_store.store_no_match(rule_event_id=self.parent_event.id,
+        #                                       message=message_for_remove,
+        #                                       event_message=cause)
 
         def clear(self):
             cause = "The message was deleted because the Recon stopped"
