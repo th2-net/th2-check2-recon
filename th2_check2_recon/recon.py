@@ -14,6 +14,7 @@
 import asyncio
 import importlib
 import logging
+from typing import Optional
 
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_common.schema.message.message_router import MessageRouter
@@ -21,7 +22,6 @@ from th2_common.schema.message.message_router import MessageRouter
 from th2_check2_recon.configuration import ReconConfiguration
 from th2_check2_recon.rule import Rule
 from th2_check2_recon.services import EventStore, AbstractService
-from typing import Optional
 
 logger = logging.getLogger()
 

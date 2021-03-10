@@ -15,13 +15,14 @@
 import logging
 import traceback
 from abc import abstractmethod
-from typing import Tuple, List, Optional, Dict
+from typing import List, Optional, Dict
 
 from th2_grpc_common.common_pb2 import Event, Message
-from th2_check2_recon.common import EventUtils, MessageComponent, MessageUtils
+
+from th2_check2_recon.common import EventUtils, MessageComponent
 from th2_check2_recon.handler import MessageHandler, AbstractHandler
-from th2_check2_recon.services import EventStore, MessageComparator, Cache
 from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp
+from th2_check2_recon.services import EventStore, MessageComparator, Cache
 
 logger = logging.getLogger()
 
@@ -51,7 +52,8 @@ class Rule:
                 mg for mg in self.__cache.message_groups if mg.id != group_id)
 
         logger.info("Rule '%s' initialized", self.name)
-        self.configure(configuration)  # Do not raise this line up because all the variables above must be available in the self.configure function
+        self.configure(
+            configuration)  # Do not raise this line up because all the variables above must be available in the self.configure function
 
     @abstractmethod
     def get_name(self) -> str:
