@@ -31,6 +31,7 @@ class Rule:
 
     def __init__(self, event_store: EventStore, message_comparator: Optional[MessageComparator],
                  cache_size: int, match_timeout: int, configuration) -> None:
+        self.configure(configuration)
         self.name = self.get_name()
         logger.info("Rule '%s' initializing...", self.name)
         self.event_store = event_store
@@ -52,8 +53,6 @@ class Rule:
                 mg for mg in self.__cache.message_groups if mg.id != group_id)
 
         logger.info("Rule '%s' initialized", self.name)
-        self.configure(
-            configuration)  # Do not raise this line up because all the variables above must be available in the self.configure function
 
     @abstractmethod
     def get_name(self) -> str:
