@@ -25,16 +25,16 @@ from th2_check2_recon.reconcommon import ReconMessage
 logger = logging.getLogger()
 
 
-class AbstractHandler(MessageListener, ABC):
+class AbstractMQHandler(MessageListener, ABC):
     def __init__(self, rule) -> None:
         self._rule = rule
 
     @abstractmethod
-    def handler(self, attributes: tuple, batch):
+    def handler(self, attributes: tuple, message):
         pass
 
 
-class MessageHandler(AbstractHandler):
+class MessageBatchMQHandler(AbstractMQHandler):
     def handler(self, attributes: tuple, batch: MessageBatch):
         try:
             for proto_message in batch.messages:

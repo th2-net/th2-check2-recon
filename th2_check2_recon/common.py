@@ -70,7 +70,7 @@ class MessageUtils:
         return message.metadata.timestamp.ToNanoseconds()
 
     @staticmethod
-    def str_message_id(message: Message) -> str:
+    def str_message_id(message) -> str:
         res = ""
         try:
             res += str(message.metadata.id.connection_id.session_alias) + ':'

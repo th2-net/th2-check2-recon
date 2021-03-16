@@ -19,7 +19,7 @@ from th2_check2_recon.common import MessageUtils
 
 class ReconMessage:
     __slots__ = ("proto_message", "group_info", "group_id", "hash_info", "hash", "is_matched",
-                 "is_check_no_match_within_timeout", "_timestamp")
+                 "is_check_no_match_within_timeout", "_timestamp", "data")
 
     def __init__(self, proto_message) -> None:
         self.proto_message = proto_message
@@ -29,6 +29,7 @@ class ReconMessage:
         self.hash = None
         self.is_matched = False
         self.is_check_no_match_within_timeout = False
+        self.data = dict()
 
     @property
     def timestamp(self):

@@ -48,7 +48,7 @@ class Recon:
             self.rules = self.__load_rules()
             for rule in self.rules:
                 for attrs in rule.get_attributes():
-                    self.__message_router.subscribe_all(rule.get_listener(), *attrs)
+                    self.__message_router.subscribe_all(rule.get_mq_listener(), *attrs)
             logger.info('Recon started!')
             self.__loop.run_forever()
         except Exception:

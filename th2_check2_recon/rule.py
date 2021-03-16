@@ -11,16 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import copy
 import logging
 import traceback
 from abc import abstractmethod
 from typing import List, Optional, Dict
 
+from th2_grpc_check2_recon.check2_recon_pb2_grpc import Check2ReconServicer
 from th2_grpc_common.common_pb2 import Event
 
 from th2_check2_recon.common import EventUtils, MessageComponent
-from th2_check2_recon.handler import MessageHandler, AbstractHandler
+from th2_check2_recon.grpc import Check2ReconHandler
+from th2_check2_recon.handler import MessageBatchMQHandler, AbstractMQHandler
 from th2_check2_recon.recon import Recon
 from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp
 from th2_check2_recon.services import Cache, MessageComparator
@@ -102,8 +105,11 @@ class Rule:
     def configure(self, configuration):
         pass
 
-    def get_listener(self) -> AbstractHandler:
-        return MessageHandler(self)
+    def get_mq_listener(self) -> AbstractMQHandler:
+        return MessageBatchMQHandler(self)
+
+    def get_grpc_listener(self) -> Check2ReconServicer:
+        return Check2ReconHandler(self)
 
     def put_shared_message(self, shared_group_id: str, message: ReconMessage, attributes: tuple):
         new_message = copy.deepcopy(message)
