@@ -43,7 +43,7 @@ class Rule:
             EventUtils.create_event(name=self.name,
                                     parent_id=recon.event_store.root_event.id,
                                     body=EventUtils.create_event_body(MessageComponent(message=self.get_description())))
-        logger.info("Created report Event for Rule '%s': %s", self.name, self.rule_event)
+        logger.debug("Created report Event for Rule '%s': %s", self.name, self.rule_event)
         self.event_store.send_parent_event(self.rule_event)
 
         self.__cache = Cache(self.description_of_groups_bridge(), cache_size, self.event_store, self.rule_event)
@@ -115,7 +115,7 @@ class Rule:
 
         self.group(message, attributes, *args, **kwargs)
         if message.group_id is None:
-            logger.info("RULE '%s': Ignored  %s", self.name, message.get_all_info())
+            logger.debug("RULE '%s': Ignored  %s", self.name, message.get_all_info())
             return
 
         self.hash(message, attributes, *args, **kwargs)
@@ -127,7 +127,7 @@ class Rule:
                             F" - available groups: {self.description_of_groups_bridge()}\n"
                             F" - message.group_id: {message.group_id}")
         else:
-            logger.info("RULE '%s': Received %s", self.name, message.get_all_info())
+            logger.debug("RULE '%s': Received %s", self.name, message.get_all_info())
 
         group_indices = []
         group_sizes = []

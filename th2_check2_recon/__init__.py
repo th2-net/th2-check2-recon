@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from importlib.metadata import version
 
-print(f"Use th2_check2_recon=={version('th2_check2_recon')}")
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    print(f"Use th2_check2_recon=={version('th2_check2_recon')}")
+except PackageNotFoundError:
+    print(f'th2_check2_recon lib not found')
