@@ -14,29 +14,32 @@
 
 import logging
 
+import grpc
 from th2_grpc_check2_recon import check2_recon_pb2_grpc
 from th2_grpc_check2_recon.check2_recon_pb2_grpc import Check2ReconServicer
 from th2_grpc_common.common_pb2 import RequestStatus
 
 from th2_check2_recon.common import MessageUtils
 from th2_check2_recon.reconcommon import ReconMessage
+from th2_check2_recon.rule import Rule
 
 logger = logging.getLogger()
 
 
 class Check2ReconHandler(Check2ReconServicer):
 
-    def __init__(self, rule) -> None:
-        self.__rule = rule
+    def __init__(self, rules: [Rule]) -> None:
+        self.__rules = rules
 
     def submitGroupBatch(self, request, context):
         try:
             for message_group in request.groups:
                 for any_message in message_group.messages:
-                    message = ReconMessage(proto_message=any_message)
-                    self.__rule.process(message, ())
-                    logger.info("  Processed msg id='%s'", MessageUtils.str_message_id(any_message))
-            logger.info("  Cache size '%s': %s.", self.__rule.get_name(), self.__rule.log_groups_size())
+                    for rule in self.__rules:
+                        message = ReconMessage(proto_message=any_message)
+                        rule.process(message, ())
+                        logger.info("  Processed msg id='%s'", MessageUtils.str_message_id(any_message))
+                        logger.info("  Cache size '%s': %s.", rule.get_name(), rule.log_groups_size())
             return RequestStatus(status=RequestStatus.Status.SUCCESS)
         except Exception:
             logger.exception(f'Submit group batch failed', request)
@@ -46,16 +49,15 @@ class Check2ReconHandler(Check2ReconServicer):
 
 class GRPCServer:
 
-    def __init__(self, server, handler) -> None:
-        self.server = server
-        self.handler = handler
+    def __init__(self, server: grpc.Server, rules: [Rule]) -> None:
+        self.__server: grpc.Server = server
+        self.__handler: Check2ReconHandler = Check2ReconHandler(rules)
 
     def start(self):
-        check2_recon_pb2_grpc.add_Check2ReconServicer_to_server(self.handler, self.server)
-        self.server.start()
+        check2_recon_pb2_grpc.add_Check2ReconServicer_to_server(self.__handler, self.__server)
+        self.__server.start()
         logger.info('GRPC Server started')
-        self.server.wait_for_termination()
 
     def stop(self):
-        self.server.stop(None)
+        self.__server.stop(None)
         logger.info('GRPC Server stopped')

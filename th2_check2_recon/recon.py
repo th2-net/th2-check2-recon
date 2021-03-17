@@ -17,10 +17,12 @@ import importlib
 import logging
 from typing import Optional
 
+import grpc
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_common.schema.message.message_router import MessageRouter
 
 from th2_check2_recon.configuration import ReconConfiguration
+from th2_check2_recon.grpc import GRPCServer
 from th2_check2_recon.reconcommon import MessageGroupType, ReconMessage
 from th2_check2_recon.services import EventStore, MessageComparator
 
@@ -28,13 +30,17 @@ logger = logging.getLogger()
 
 
 class Recon:
-    def __init__(self, event_router: EventBatchRouter, message_router: MessageRouter,
-                 custom_config: dict, message_comparator: Optional[MessageComparator] = None) -> None:
+    def __init__(self, event_router: EventBatchRouter, custom_config: dict,
+                 message_router: Optional[MessageRouter] = None,
+                 grpc_server: Optional[grpc.Server] = None,
+                 message_comparator: Optional[MessageComparator] = None) -> None:
         logger.info('Recon initializing...')
         self.rules = []
         self.__loop = asyncio.get_event_loop()
         self.__config = ReconConfiguration(**custom_config)
-        self.__message_router = message_router
+        self.__message_router: Optional[MessageRouter] = message_router
+        self.__grpc_server: Optional[grpc.Server] = grpc_server
+        self.__recon_grpc_server: Optional[GRPCServer] = None
 
         self.message_comparator: Optional[MessageComparator] = message_comparator
         self.event_store = EventStore(event_router=event_router,
@@ -46,9 +52,13 @@ class Recon:
         try:
             logger.info('Recon running...')
             self.rules = self.__load_rules()
-            for rule in self.rules:
-                for attrs in rule.get_attributes():
-                    self.__message_router.subscribe_all(rule.get_mq_listener(), *attrs)
+            if self.__message_router is not None:
+                for rule in self.rules:
+                    for attrs in rule.get_attributes():
+                        self.__message_router.subscribe_all(rule.get_mq_listener(), *attrs)
+            if self.__grpc_server is not None:
+                self.__recon_grpc_server = GRPCServer(self.__grpc_server, self.rules)
+                self.__recon_grpc_server.start()
             logger.info('Recon started!')
             self.__loop.run_forever()
         except Exception:
@@ -57,11 +67,14 @@ class Recon:
     def stop(self):
         logger.info('Recon try to stop')
         try:
-            self.__message_router.unsubscribe_all()
+            if self.__message_router is not None:
+                self.__message_router.unsubscribe_all()
             for rule in self.rules:
                 rule.stop()
             if self.message_comparator is not None:
                 self.message_comparator.stop()
+            if self.__recon_grpc_server is not None:
+                self.__recon_grpc_server.stop()
             self.event_store.stop()
         except Exception:
             logger.exception('Error while stop Recon')
