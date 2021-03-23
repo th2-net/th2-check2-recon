@@ -35,8 +35,13 @@ class ReconMessage:
         try:
             return self._timestamp
         except AttributeError:
-            self._timestamp = MessageUtils.get_timestamp_ns(self.proto_message)
-            return self._timestamp
+            try:
+                self._timestamp = MessageUtils.get_timestamp_ns(self.proto_message)
+                return self._timestamp
+            except AttributeError:
+                # If proto_message is not protobuf.
+                self._timestamp = 0
+                return self._timestamp
 
     @staticmethod
     def get_info(info_dict: dict) -> str:

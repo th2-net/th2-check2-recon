@@ -110,16 +110,21 @@ class Rule:
         new_message.group_id = shared_group_id
         self.recon.put_shared_message(shared_group_id, new_message, attributes)
 
-    def process(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
-        self.check_no_match_within_timeout(message.timestamp)
+    def retransmit_msg(self, message, attributes):
+        """Retransmit message to itself."""
+        self.process(copy.deepcopy(message), attributes)
 
+    def process(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         self.group(message, attributes, *args, **kwargs)
         if message.group_id is None:
-            logger.debug("RULE '%s': Ignored  %s", self.name, message.get_all_info())
+            logger.info("RULE '%s': Ignored  %s", self.name, message.get_all_info())
             return
 
         self.hash(message, attributes, *args, **kwargs)
+        self.check_no_match_within_timeout(message.timestamp)
+        self._process(message, attributes, *args, **kwargs)
 
+    def _process(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         index_of_main_group = self.__cache.index_of_group(message.group_id)
         if index_of_main_group == -1:
             raise Exception(F"'group' method set incorrect groups.\n"
@@ -169,8 +174,9 @@ class Rule:
         if check_event is None:
             return
 
-        max_timestamp_msg = max(matched_messages, key=_get_msg_timestamp)
-        min_timestamp_msg = min(matched_messages, key=_get_msg_timestamp)
+        matched_messages_wo_shared = tuple(m for m in matched_messages if m.timestamp != 0)
+        max_timestamp_msg = max(matched_messages_wo_shared, key=_get_msg_timestamp)
+        min_timestamp_msg = min(matched_messages_wo_shared, key=_get_msg_timestamp)
 
         if max_timestamp_msg.timestamp - min_timestamp_msg.timestamp > self.match_timeout:
             self.event_store.store_matched_out_of_timeout(rule_event_id=self.rule_event.id,
