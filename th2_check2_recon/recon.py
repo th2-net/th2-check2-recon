@@ -43,16 +43,13 @@ class Recon:
                                       event_batch_send_interval=self.__config.event_batch_send_interval)
 
     def start(self):
-        try:
-            logger.info('Recon running...')
-            self.rules = self.__load_rules()
-            for rule in self.rules:
-                for attrs in rule.get_attributes():
-                    self.__message_router.subscribe_all(rule.get_listener(), *attrs)
-            logger.info('Recon started!')
-            self.__loop.run_forever()
-        except Exception:
-            logger.exception(f'Recon running error')
+        logger.info('Recon running...')
+        self.rules = self.__load_rules()
+        for rule in self.rules:
+            for attrs in rule.get_attributes():
+                self.__message_router.subscribe_all(rule.get_listener(), *attrs)
+        logger.info('Recon started!')
+        self.__loop.run_forever()
 
     def stop(self):
         logger.info('Recon try to stop')
