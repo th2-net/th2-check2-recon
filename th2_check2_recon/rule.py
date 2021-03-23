@@ -117,7 +117,7 @@ class Rule:
     def process(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         self.group(message, attributes, *args, **kwargs)
         if message.group_id is None:
-            logger.info("RULE '%s': Ignored  %s", self.name, message.get_all_info())
+            logger.debug("RULE '%s': Ignored  %s", self.name, message.get_all_info())
             return
 
         self.hash(message, attributes, *args, **kwargs)
