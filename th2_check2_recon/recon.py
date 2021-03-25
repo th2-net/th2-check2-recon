@@ -64,7 +64,7 @@ class Recon:
         except Exception:
             logger.exception('Error while stop Recon')
         finally:
-            self.__loop.stop()
+            self.__loop.call_soon_threadsafe(self.__loop.stop)
             while self.__loop.is_running():
                 logger.warning('Recon event loop cannot be closed because it is running. Try in 1 sec.')
                 time.sleep(1)
