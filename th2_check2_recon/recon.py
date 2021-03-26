@@ -51,7 +51,7 @@ class Recon:
     def __handler(self, loop):
         logger.info('SIGTERM received in recon')
         loop.remove_signal_handler(signal.SIGTERM)
-        loop.stop()
+        loop.call_soon_threadsafe(loop.stop)
         logger.info('Recon event_loop is stopped')
         self.stop()
 
