@@ -15,7 +15,7 @@
 import asyncio
 import importlib
 import logging
-import time
+import signal
 from typing import Optional
 
 from th2_common.schema.event.event_batch_router import EventBatchRouter
@@ -43,12 +43,18 @@ class Recon:
                                       event_batch_max_size=self.__config.event_batch_max_size,
                                       event_batch_send_interval=self.__config.event_batch_send_interval)
 
+    def __handler(self, loop):
+        loop.remove_signal_handler(signal.SIGTERM)
+        loop.stop()
+        self.stop()
+
     def start(self):
         logger.info('Recon running...')
         self.rules = self.__load_rules()
         for rule in self.rules:
             for attrs in rule.get_attributes():
                 self.__message_router.subscribe_all(rule.get_listener(), *attrs)
+        self.__loop.add_signal_handler(signal.SIGTERM, self.__handler, self.__loop)
         logger.info('Recon started!')
         self.__loop.run_forever()
 
@@ -64,10 +70,6 @@ class Recon:
         except Exception:
             logger.exception('Error while stop Recon')
         finally:
-            self.__loop.call_soon_threadsafe(self.__loop.stop)
-            while self.__loop.is_running():
-                logger.warning('Recon event loop cannot be closed because it is running. Try in 1 sec.')
-                time.sleep(1)
             self.__loop.close()
             logger.info('Recon stopped!')
 
