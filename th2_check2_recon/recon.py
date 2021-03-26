@@ -52,7 +52,7 @@ class Recon:
             logger.info('Recon started!')
             self.__loop.run_forever()
         except Exception:
-            logger.exception(f'Recon running error')
+            logger.info('Recon work interrupted')
 
     def stop(self):
         logger.info('Recon try to stop')
@@ -66,7 +66,10 @@ class Recon:
         except Exception:
             logger.exception('Error while stop Recon')
         finally:
-            self.__loop.close()
+            try:
+                self.__loop.close()
+            except Exception:
+                pass
             logger.info('Recon stopped!')
 
     def __load_rules(self):
