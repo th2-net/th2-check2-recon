@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import logging
-import time
 from abc import ABC, abstractmethod
 
 from th2_common.schema.message.message_listener import MessageListener
@@ -38,13 +37,11 @@ class MessageHandler(AbstractHandler):
     def handler(self, attributes: tuple, batch: MessageBatch):
         try:
             for proto_message in batch.messages:
-                start_time = time.time_ns()
                 message = ReconMessage(proto_message=proto_message)
                 self._rule.process(message, attributes)
                 logger.debug("  Processed '%s' id='%s' in %s ms",
                              proto_message.metadata.message_type,
-                             MessageUtils.str_message_id(proto_message),
-                             (time.time_ns() - start_time) / 1_000_000)
+                             MessageUtils.str_message_id(proto_message))
 
             logger.debug("  Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
         except Exception:

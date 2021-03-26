@@ -18,6 +18,7 @@ from threading import Lock, Timer
 from typing import Optional, Dict, List
 
 import sortedcollections
+from google.protobuf import text_format
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, Message
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
@@ -108,7 +109,8 @@ class EventStore(AbstractService):
         self.__group_event_by_rule_id = dict()
 
         self.root_event: Event = EventUtils.create_event(name='Recon: ' + report_name)
-        logger.debug('Created root report Event for Recon: %s', self.root_event)
+        logger.debug('Created root report Event for Recon: %s',
+                     text_format.MessageToString(self.root_event, as_one_line=True))
         self.send_parent_event(self.root_event)
 
     def send_event(self, event: Event, rule_event_id: EventID, group_event_name: str):
