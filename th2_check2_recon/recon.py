@@ -17,6 +17,7 @@ import importlib
 import logging
 import signal
 import threading
+import time
 from typing import Optional
 
 from th2_common.schema.event.event_batch_router import EventBatchRouter
@@ -48,8 +49,10 @@ class Recon:
         self.__is_stopped = None
 
     def __handler(self, loop):
+        logger.info('SIGTERM received in recon')
         loop.remove_signal_handler(signal.SIGTERM)
         loop.stop()
+        logger.info('Recon event_loop is stopped')
         self.stop()
 
     def start(self):
@@ -77,6 +80,9 @@ class Recon:
             except Exception:
                 logger.exception('Error while stop Recon')
             finally:
+                while self.__loop.is_running():
+                    logger.warning('Recon event loop cannot be closed because it is running. Try in 1 sec.')
+                    time.sleep(1)
                 self.__loop.close()
                 self.__is_stopped = True
                 logger.info('Recon stopped!')
