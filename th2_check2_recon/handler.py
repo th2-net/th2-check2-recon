@@ -39,7 +39,7 @@ class MessageHandler(AbstractHandler):
             for proto_message in batch.messages:
                 message = ReconMessage(proto_message=proto_message)
                 self._rule.process(message, attributes)
-                logger.debug("  Processed '%s' id='%s' in %s ms",
+                logger.debug("  Processed '%s' id='%s'",
                              proto_message.metadata.message_type,
                              MessageUtils.str_message_id(proto_message))
 
