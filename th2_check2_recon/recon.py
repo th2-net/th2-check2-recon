@@ -41,6 +41,7 @@ class Recon:
                                       report_name=self.__config.recon_name,
                                       event_batch_max_size=self.__config.event_batch_max_size,
                                       event_batch_send_interval=self.__config.event_batch_send_interval)
+        self.shared_dict = dict()
 
     def start(self):
         try:
