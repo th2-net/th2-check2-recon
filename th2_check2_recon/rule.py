@@ -17,6 +17,7 @@ import traceback
 from abc import abstractmethod
 from typing import List, Optional, Dict
 
+from google.protobuf import text_format
 from th2_grpc_common.common_pb2 import Event
 
 from th2_check2_recon.common import EventUtils, MessageComponent
@@ -43,7 +44,8 @@ class Rule:
             EventUtils.create_event(name=self.name,
                                     parent_id=recon.event_store.root_event.id,
                                     body=EventUtils.create_event_body(MessageComponent(message=self.get_description())))
-        logger.debug("Created report Event for Rule '%s': %s", self.name, self.rule_event)
+        logger.debug("Created report Event for Rule '%s': %s", self.name,
+                     text_format.MessageToString(self.rule_event, as_one_line=True))
         self.event_store.send_parent_event(self.rule_event)
 
         self.__cache = Cache(self.description_of_groups_bridge(), cache_size, self.event_store, self.rule_event)

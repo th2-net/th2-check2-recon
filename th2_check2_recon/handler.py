@@ -13,13 +13,12 @@
 # limitations under the License.
 
 import logging
-import time
 from abc import ABC, abstractmethod
 
+from google.protobuf import text_format
 from th2_common.schema.message.message_listener import MessageListener
 from th2_grpc_common.common_pb2 import MessageBatch
 
-from th2_check2_recon.common import MessageUtils
 from th2_check2_recon.reconcommon import ReconMessage
 
 logger = logging.getLogger()
@@ -38,15 +37,11 @@ class MessageHandler(AbstractHandler):
     def handler(self, attributes: tuple, batch: MessageBatch):
         try:
             for proto_message in batch.messages:
-                start_time = time.time_ns()
                 message = ReconMessage(proto_message=proto_message)
                 self._rule.process(message, attributes)
-                logger.debug("  Processed '%s' id='%s' in %s ms",
-                             proto_message.metadata.message_type,
-                             MessageUtils.str_message_id(proto_message),
-                             (time.time_ns() - start_time) / 1_000_000)
 
             logger.debug("  Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
         except Exception:
             logger.exception(f'Rule: {self._rule.get_name()}. '
-                             f'An error occurred while processing the received message. Body: {batch}')
+                             f'An error occurred while processing the received message. '
+                             f'Body: {text_format.MessageToString(batch, as_one_line=True)}')
