@@ -15,8 +15,10 @@
 import logging
 from abc import ABC, abstractmethod
 
+from google.protobuf.text_format import MessageToString
 from th2_common.schema.message.message_listener import MessageListener
-from th2_grpc_common.common_pb2 import MessageBatch
+from th2_grpc_check2_recon.check2_recon_pb2_grpc import Check2ReconServicer
+from th2_grpc_common.common_pb2 import MessageBatch, RequestStatus
 
 from th2_check2_recon.common import MessageUtils
 from th2_check2_recon.reconcommon import ReconMessage
@@ -47,3 +49,27 @@ class MessageHandler(AbstractHandler):
         except Exception:
             logger.exception(f'Rule: {self._rule.get_name()}. '
                              f'An error occurred while processing the received message. Body: {batch}')
+
+
+class GRPCHandler(Check2ReconServicer):
+
+    def __init__(self, rule) -> None:
+        self._rule = rule
+
+    def submitGroupBatch(self, request, context):
+        try:
+            logger.debug(f'submitGroupBatch request: {MessageToString(request)}')
+            messages = [message.message for group in request.groups
+                        for message in group.messages if message.HasField('message')]
+            for proto_message in messages:
+                message = ReconMessage(proto_message=proto_message)
+                self._rule.process((), message)
+                logger.debug(f"Processed '{proto_message.metadata.message_type}' "
+                             f"id='{MessageUtils.str_message_id(proto_message)}'")
+
+            return RequestStatus(status=RequestStatus.SUCCESS, message='Successfully processed batch')
+        except Exception as e:
+            logger.exception('submitGroupBatch request failed')
+            logger.exception(f'Rule: {self._rule.get_name()}. '
+                             f'An error occurred while processing the received batch. Batch: {request.groups}')
+            return RequestStatus(status=RequestStatus.ERROR, message=str(e))

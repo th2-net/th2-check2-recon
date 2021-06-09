@@ -21,6 +21,7 @@ from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_common.schema.message.message_router import MessageRouter
 
 from th2_check2_recon.configuration import ReconConfiguration
+from th2_check2_recon.handler import MessageHandler, GRPCHandler
 from th2_check2_recon.reconcommon import MessageGroupType, ReconMessage
 from th2_check2_recon.services import EventStore, MessageComparator
 
@@ -42,13 +43,16 @@ class Recon:
                                       event_batch_max_size=self.__config.event_batch_max_size,
                                       event_batch_send_interval=self.__config.event_batch_send_interval)
 
-    def start(self):
+    def start(self, handler=MessageHandler):
         try:
             logger.info('Recon running...')
             self.rules = self.__load_rules()
             for rule in self.rules:
                 for attrs in rule.get_attributes():
-                    self.__message_router.subscribe_all(rule.get_listener(), *attrs)
+                    if handler is MessageHandler:
+                        self.__message_router.subscribe_all(rule.get_message_listener(), *attrs)
+                    elif handler is GRPCHandler:
+                        self.__message_router.subscribe_all(rule.get_grpc_listener(), *attrs)
             logger.info('Recon started!')
             self.__loop.run_forever()
         except Exception:
