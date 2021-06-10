@@ -53,23 +53,31 @@ class MessageHandler(AbstractHandler):
 
 class GRPCHandler(Check2ReconServicer):
 
-    def __init__(self, rule) -> None:
-        self._rule = rule
+    def __init__(self, rules: list) -> None:
+        self._rules = rules
 
     def submitGroupBatch(self, request, context):
         try:
-            logger.debug(f'submitGroupBatch request: {MessageToString(request)}')
+            logger.debug(f'submitGroupBatch request: {MessageToString(request, as_one_line=True)}')
+
             messages = [message.message for group in request.groups
                         for message in group.messages if message.HasField('message')]
+
             for proto_message in messages:
                 message = ReconMessage(proto_message=proto_message)
-                self._rule.process((), message)
+
+                for rule in self._rules:
+                    try:
+                        rule.process((), message)
+                    except Exception:
+                        logger.exception(f'Rule: {rule.get_name()}. '
+                                         f'An error occurred while processing the message. '
+                                         f'Message: {MessageToString(proto_message, as_one_line=True)}')
+
                 logger.debug(f"Processed '{proto_message.metadata.message_type}' "
                              f"id='{MessageUtils.str_message_id(proto_message)}'")
 
             return RequestStatus(status=RequestStatus.SUCCESS, message='Successfully processed batch')
         except Exception as e:
             logger.exception('submitGroupBatch request failed')
-            logger.exception(f'Rule: {self._rule.get_name()}. '
-                             f'An error occurred while processing the received batch. Batch: {request.groups}')
             return RequestStatus(status=RequestStatus.ERROR, message=str(e))
