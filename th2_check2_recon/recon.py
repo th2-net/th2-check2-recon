@@ -44,18 +44,18 @@ class Recon:
                                       event_batch_max_size=self.__config.event_batch_max_size,
                                       event_batch_send_interval=self.__config.event_batch_send_interval)
 
-    def start(self, handler=MessageHandler, server=None):
+    def start(self, server=None):
         try:
             logger.info('Recon running...')
             self.rules = self.__load_rules()
-            if handler is MessageHandler:
-                for rule in self.rules:
-                    for attrs in rule.get_attributes():
-                        self.__message_router.subscribe_all(rule.get_message_listener(), *attrs)
-            elif handler is GRPCHandler:
-                grpc_handler = GRPCHandler(self.rules)
-                check2_recon_pb2_grpc.add_Check2ReconServicer_to_server(grpc_handler, server)
-                server.start()
+            for rule in self.rules:
+                for attrs in rule.get_attributes():
+                    self.__message_router.subscribe_all(rule.get_listener(), *attrs)
+
+            grpc_handler = GRPCHandler(self.rules)
+            check2_recon_pb2_grpc.add_Check2ReconServicer_to_server(grpc_handler, server)
+            server.start()
+
             logger.info('Recon started!')
             self.__loop.run_forever()
         except Exception:
