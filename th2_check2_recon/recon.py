@@ -17,10 +17,13 @@ import importlib
 import logging
 from typing import Optional
 
+from grpc import Server
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_common.schema.message.message_router import MessageRouter
+from th2_grpc_check2_recon import check2_recon_pb2_grpc
 
 from th2_check2_recon.configuration import ReconConfiguration
+from th2_check2_recon.handler import GRPCHandler
 from th2_check2_recon.reconcommon import MessageGroupType, ReconMessage
 from th2_check2_recon.services import EventStore, MessageComparator
 
@@ -28,19 +31,20 @@ logger = logging.getLogger()
 
 
 class Recon:
-    def __init__(self, event_router: EventBatchRouter, message_router: MessageRouter,
-                 custom_config: dict, message_comparator: Optional[MessageComparator] = None) -> None:
+    def __init__(self, event_router: EventBatchRouter, message_router: MessageRouter, custom_config: dict,
+                 message_comparator: Optional[MessageComparator] = None,
+                 grpc_server: Optional[Server] = None) -> None:
         logger.info('Recon initializing...')
         self.rules = []
         self.__loop = asyncio.get_event_loop()
         self.__config = ReconConfiguration(**custom_config)
         self.__message_router = message_router
-
-        self.message_comparator: Optional[MessageComparator] = message_comparator
         self.event_store = EventStore(event_router=event_router,
                                       report_name=self.__config.recon_name,
                                       event_batch_max_size=self.__config.event_batch_max_size,
                                       event_batch_send_interval=self.__config.event_batch_send_interval)
+        self.message_comparator: Optional[MessageComparator] = message_comparator
+        self.grpc_server: Optional[Server] = grpc_server
 
     def start(self):
         try:
@@ -49,6 +53,12 @@ class Recon:
             for rule in self.rules:
                 for attrs in rule.get_attributes():
                     self.__message_router.subscribe_all(rule.get_listener(), *attrs)
+
+            if self.grpc_server is not None:
+                grpc_handler = GRPCHandler(self.rules)
+                check2_recon_pb2_grpc.add_Check2ReconServicer_to_server(grpc_handler, self.grpc_server)
+                self.grpc_server.start()
+
             logger.info('Recon started!')
             self.__loop.run_forever()
         except Exception:
