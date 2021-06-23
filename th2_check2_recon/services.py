@@ -177,9 +177,9 @@ class EventStore(AbstractService):
         self.send_event(event, rule_event_id, self.NO_MATCH)
 
     def store_error(self, rule_event_id: EventID, event_name: str, error_message: str,
-                    messages: [ReconMessage] = None):
+                    messages: List[ReconMessage] = None):
         body = EventUtils.create_event_body(MessageComponent(error_message))
-        attached_message_ids = self._get_attached_messages_ids(messages)
+        attached_message_ids = self._get_attached_message_ids(*messages)
         event = EventUtils.create_event(name=event_name,
                                         status=EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids,
@@ -199,13 +199,7 @@ class EventStore(AbstractService):
     def stop(self):
         self.__events_batch_collector.stop()
 
-    def _get_attached_message_ids(self, recon_msg):
-        try:
-            return [recon_msg.proto_message.metadata.id]
-        except AttributeError:
-            return []
-
-    def _get_attached_messages_ids(self, recon_msgs):
+    def _get_attached_message_ids(self, *recon_msgs):
         try:
             return [message.proto_message.metadata.id for message in recon_msgs]
         except AttributeError:
