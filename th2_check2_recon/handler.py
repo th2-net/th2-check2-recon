@@ -48,7 +48,8 @@ class MessageHandler(AbstractHandler):
             logger.debug("  Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
         except Exception:
             logger.exception(f'Rule: {self._rule.get_name()}. '
-                             f'An error occurred while processing the received message. Body: {batch}')
+                             f'An error occurred while processing the received message. '
+                             f'Message: {MessageToString(batch, as_one_line=True)}')
 
 
 class GRPCHandler(Check2ReconServicer):
