@@ -27,7 +27,8 @@ from th2_check2_recon.recon import Recon
 from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp
 from th2_check2_recon.services import Cache, MessageComparator
 
-logger = logging.getLogger()
+
+logger = logging.getLogger(__name__)
 
 
 class Rule:
