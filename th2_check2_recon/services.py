@@ -27,7 +27,8 @@ from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSet
 from th2_check2_recon.common import EventUtils, MessageComponent, VerificationComponent
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
 
-logger = logging.getLogger()
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractService(ABC):

@@ -27,7 +27,8 @@ from th2_check2_recon.handler import GRPCHandler
 from th2_check2_recon.reconcommon import MessageGroupType, ReconMessage
 from th2_check2_recon.services import EventStore, MessageComparator
 
-logger = logging.getLogger()
+
+logger = logging.getLogger(__name__)
 
 
 class Recon:
