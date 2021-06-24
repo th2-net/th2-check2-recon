@@ -62,7 +62,8 @@ class Recon:
             logger.info('Recon started!')
             self.__loop.run_forever()
         except Exception:
-            logger.info('Recon work interrupted')
+            logger.error('Recon work interrupted')
+            raise
 
     def stop(self):
         logger.info('Recon try to stop')
