@@ -68,9 +68,10 @@ class Rule:
     def get_description(self) -> str:
         pass
 
-    @abstractmethod
     def get_attributes(self) -> [list]:
-        pass
+       return [
+           ['parsed', 'subscribe']
+       ]
 
     @abstractmethod
     def description_of_groups(self) -> dict:
