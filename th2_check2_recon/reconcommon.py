@@ -13,22 +13,23 @@
 # limitations under the License.
 
 from enum import Enum
+from typing import Optional
 
 from th2_check2_recon.common import MessageUtils
 
 
 class ReconMessage:
     __slots__ = ("proto_message", "group_info", "group_id", "hash_info", "hash", "is_matched",
-                 "is_check_no_match_within_timeout", "_timestamp")
+                 "is_ouf_of_timeout", "_timestamp")
 
     def __init__(self, proto_message) -> None:
         self.proto_message = proto_message
         self.group_info = dict()
-        self.group_id = None
+        self.group_id: Optional[str] = None
         self.hash_info = dict()
-        self.hash = None
+        self.hash: Optional[int] = None
         self.is_matched = False
-        self.is_check_no_match_within_timeout = False
+        self.is_ouf_of_timeout = False
 
     @property
     def timestamp(self):

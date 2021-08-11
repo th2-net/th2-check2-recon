@@ -27,7 +27,6 @@ from th2_check2_recon.handler import GRPCHandler
 from th2_check2_recon.reconcommon import MessageGroupType, ReconMessage
 from th2_check2_recon.services import EventStore, MessageComparator
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -45,7 +44,7 @@ class Recon:
                                       event_batch_max_size=self.__config.event_batch_max_size,
                                       event_batch_send_interval=self.__config.event_batch_send_interval)
         self.message_comparator: Optional[MessageComparator] = message_comparator
-        self.grpc_server: Optional[Server] = grpc_server
+        self.__grpc_server: Optional[Server] = grpc_server
 
     def start(self):
         try:
@@ -55,10 +54,10 @@ class Recon:
                 for attrs in rule.get_attributes():
                     self.__message_router.subscribe_all(rule.get_listener(), *attrs)
 
-            if self.grpc_server is not None:
+            if self.__grpc_server is not None:
                 grpc_handler = GRPCHandler(self.rules)
-                check2_recon_pb2_grpc.add_Check2ReconServicer_to_server(grpc_handler, self.grpc_server)
-                self.grpc_server.start()
+                check2_recon_pb2_grpc.add_Check2ReconServicer_to_server(grpc_handler, self.__grpc_server)
+                self.__grpc_server.start()
 
             logger.info('Recon started!')
             self.__loop.run_forever()
@@ -70,6 +69,8 @@ class Recon:
         logger.info('Recon try to stop')
         try:
             self.__message_router.unsubscribe_all()
+            if self.__grpc_server is not None:
+                self.__grpc_server.stop(None)
             for rule in self.rules:
                 rule.stop()
             if self.message_comparator is not None:
@@ -79,7 +80,7 @@ class Recon:
             logger.exception('Error while stop Recon')
         finally:
             try:
-                self.__loop.close()
+                self.__loop.call_soon_threadsafe(self.__loop.stop)
             except Exception:
                 pass
             logger.info('Recon stopped!')
@@ -101,6 +102,6 @@ class Recon:
 
     def put_shared_message(self, shared_group_id: str, new_message: ReconMessage, attributes: tuple):
         for rule in self.rules:
-            groups = rule.description_of_groups_bridge()
+            groups = rule._description_of_groups_bridge()
             if shared_group_id in groups.keys() and MessageGroupType.shared in groups[shared_group_id]:
                 rule.process(new_message, attributes)
