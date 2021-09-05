@@ -19,6 +19,7 @@ from typing import Optional, Dict, List
 
 import sortedcollections
 from google.protobuf import text_format
+from google.protobuf.text_format import MessageToString
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, Message
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
@@ -26,7 +27,6 @@ from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSet
 
 from th2_check2_recon.common import EventUtils, MessageComponent, VerificationComponent
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
-
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +121,8 @@ class EventStore(AbstractService):
             if not self.__group_event_by_rule_id[rule_event_id.id].__contains__(group_event_name):
                 group_event = EventUtils.create_event(parent_id=rule_event_id,
                                                       name=group_event_name)
-                logger.debug(f"Create group Event '%s' for rule Event '%s'", group_event_name, rule_event_id)
+                logger.debug(f"Create group Event '%s' for rule Event '%s'", group_event_name,
+                             MessageToString(rule_event_id, as_one_line=True))
                 self.__group_event_by_rule_id[rule_event_id.id][group_event_name] = group_event
                 self.send_parent_event(group_event)
 
@@ -162,7 +163,8 @@ class EventStore(AbstractService):
         event = EventUtils.create_event(name=name,
                                         body=body,
                                         attached_message_ids=attached_message_ids)
-        logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH_WITHIN_TIMEOUT, rule_event_id)
+        logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH_WITHIN_TIMEOUT,
+                     MessageToString(rule_event_id, as_one_line=True))
         self.send_event(event, rule_event_id, self.NO_MATCH_WITHIN_TIMEOUT)
 
     def store_no_match(self, rule_event_id: EventID, message: ReconMessage, event_message: str):
@@ -174,7 +176,8 @@ class EventStore(AbstractService):
                                         body=body,
                                         status=EventStatus.SUCCESS if message.is_matched else EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids)
-        logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH, rule_event_id)
+        logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH,
+                     MessageToString(rule_event_id, as_one_line=True))
         self.send_event(event, rule_event_id, self.NO_MATCH)
 
     def store_error(self, rule_event_id: EventID, event_name: str, error_message: str,
@@ -185,7 +188,8 @@ class EventStore(AbstractService):
                                         status=EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids,
                                         body=body)
-        logger.debug("Create '%s' Event for rule Event '%s'", self.ERRORS, rule_event_id)
+        logger.debug("Create '%s' Event for rule Event '%s'", self.ERRORS,
+                     MessageToString(rule_event_id, as_one_line=True))
         self.send_event(event, rule_event_id, self.ERRORS)
 
     def store_matched_out_of_timeout(self, rule_event_id: EventID, check_event: Event):

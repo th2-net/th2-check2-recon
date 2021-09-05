@@ -19,6 +19,7 @@ from abc import abstractmethod
 from typing import List, Optional, Dict
 
 from google.protobuf import text_format
+from google.protobuf.text_format import MessageToString
 from th2_grpc_common.common_pb2 import Event
 
 from th2_check2_recon.common import EventUtils, MessageComponent
@@ -26,7 +27,6 @@ from th2_check2_recon.handler import MessageHandler, AbstractHandler
 from th2_check2_recon.recon import Recon
 from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp
 from th2_check2_recon.services import Cache, MessageComparator
-
 
 logger = logging.getLogger(__name__)
 
@@ -168,12 +168,15 @@ class Rule:
     def __hash_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         try:
             self.hash(message, attributes, *args, **kwargs)
+            if message.hash is None:
+                raise Exception(f'Hash of message is None. Message:'
+                                f' {MessageToString(message.proto_message, as_one_line=True)}')
         except Exception:
             logger.exception(f"RULE '{self.name}': An exception was caught while running 'hash'")
             self.event_store.store_error(rule_event_id=self.rule_event.id,
                                          event_name="An exception was caught while running 'hash'",
                                          error_message=traceback.format_exc(),
-                                         messages=message)
+                                         messages=[message])
 
     def __check_and_store_event(self, matched_messages: List[ReconMessage], attributes: tuple, *args, **kwargs):
         for msg in matched_messages:
