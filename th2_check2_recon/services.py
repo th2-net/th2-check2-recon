@@ -254,6 +254,9 @@ class Cache(AbstractService):
         self.event_store = event_store
         self.rule_event = rule_event
 
+        if len(message_group_types.keys()) < 2:
+            raise Exception("At least two groups must be defined")
+
         self.message_groups: List[Cache.MessageGroup] = [
             Cache.MessageGroup(id=message_group_id,
                                capacity=cache_size,
