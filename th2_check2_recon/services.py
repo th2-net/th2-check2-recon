@@ -121,8 +121,8 @@ class EventStore(AbstractService):
             if not self.__group_event_by_rule_id[rule_event_id.id].__contains__(group_event_name):
                 group_event = EventUtils.create_event(parent_id=rule_event_id,
                                                       name=group_event_name)
-                logger.debug(f"Create group Event '%s' for rule Event '%s'", group_event_name,
-                             MessageToString(rule_event_id, as_one_line=True))
+                logger.debug(f"Create group Event '{group_event_name}' "
+                             f"for rule Event '{MessageToString(rule_event_id, as_one_line=True)}'")
                 self.__group_event_by_rule_id[rule_event_id.id][group_event_name] = group_event
                 self.send_parent_event(group_event)
 
@@ -163,8 +163,8 @@ class EventStore(AbstractService):
         event = EventUtils.create_event(name=name,
                                         body=body,
                                         attached_message_ids=attached_message_ids)
-        logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH_WITHIN_TIMEOUT,
-                     MessageToString(rule_event_id, as_one_line=True))
+        logger.debug(f"Create '{self.NO_MATCH_WITHIN_TIMEOUT}' "
+                     f"Event for rule Event '{MessageToString(rule_event_id, as_one_line=True)}'")
         self.send_event(event, rule_event_id, self.NO_MATCH_WITHIN_TIMEOUT)
 
     def store_no_match(self, rule_event_id: EventID, message: ReconMessage, event_message: str):
@@ -176,8 +176,8 @@ class EventStore(AbstractService):
                                         body=body,
                                         status=EventStatus.SUCCESS if message.is_matched else EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids)
-        logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH,
-                     MessageToString(rule_event_id, as_one_line=True))
+        logger.debug(f"Create '{self.NO_MATCH}' Event "
+                     f"for rule Event '{MessageToString(rule_event_id, as_one_line=True)}'")
         self.send_event(event, rule_event_id, self.NO_MATCH)
 
     def store_error(self, rule_event_id: EventID, event_name: str, error_message: str,
@@ -188,8 +188,8 @@ class EventStore(AbstractService):
                                         status=EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids,
                                         body=body)
-        logger.debug("Create '%s' Event for rule Event '%s'", self.ERRORS,
-                     MessageToString(rule_event_id, as_one_line=True))
+        logger.debug(f"Create '{self.ERRORS}' Event "
+                     f"for rule Event '{MessageToString(rule_event_id, as_one_line=True)}'")
         self.send_event(event, rule_event_id, self.ERRORS)
 
     def store_matched_out_of_timeout(self, rule_event_id: EventID, check_event: Event):
