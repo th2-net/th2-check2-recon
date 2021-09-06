@@ -27,7 +27,6 @@ from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSet
 from th2_check2_recon.common import EventUtils, MessageComponent, VerificationComponent
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -251,6 +250,9 @@ class Cache(AbstractService):
         self.capacity = cache_size
         self.event_store = event_store
         self.rule_event = rule_event
+
+        if len(message_group_types.keys()) < 2:
+            raise Exception("At least two groups must be defined")
 
         self.message_groups: List[Cache.MessageGroup] = [
             Cache.MessageGroup(id=message_group_id,
