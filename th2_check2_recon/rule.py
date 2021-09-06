@@ -109,6 +109,9 @@ class Rule:
         return MessageHandler(self)
 
     def put_shared_message(self, shared_group_id: str, message: ReconMessage, attributes: tuple):
+        for field_name in ['id', 'timestamp']:
+            if not message.proto_message.metadata.HasField(field_name):
+                raise Exception(f"A message prepared for a shared group does not contain a {field_name}")
         new_message = copy.deepcopy(message)
         new_message.group_id = shared_group_id
         self.recon.put_shared_message(shared_group_id, new_message, attributes)
