@@ -27,7 +27,6 @@ from th2_check2_recon.recon import Recon
 from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp
 from th2_check2_recon.services import Cache, MessageComparator
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -46,7 +45,8 @@ class Rule:
         self.rule_event: Event = \
             EventUtils.create_event(name=self.name,
                                     parent_id=recon.event_store.root_event.id,
-                                    body=EventUtils.create_event_body(MessageComponent(message=self.get_description())))
+                                    body=EventUtils.create_event_body(MessageComponent(message=self.get_description())),
+                                    type='Rule')
         logger.debug("Created report Event for Rule '%s': %s", self.name,
                      text_format.MessageToString(self.rule_event, as_one_line=True))
         self.event_store.send_parent_event(self.rule_event)

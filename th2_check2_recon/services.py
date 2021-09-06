@@ -108,7 +108,8 @@ class EventStore(AbstractService):
                                                              event_batch_send_interval)
         self.__group_event_by_rule_id = dict()
 
-        self.root_event: Event = EventUtils.create_event(name='Recon: ' + report_name)
+        self.root_event: Event = EventUtils.create_event(name='Recon: ' + report_name,
+                                                         type='Recon')
         logger.debug('Created root report Event for Recon: %s',
                      text_format.MessageToString(self.root_event, as_one_line=True))
         self.send_parent_event(self.root_event)
@@ -119,7 +120,8 @@ class EventStore(AbstractService):
                 self.__group_event_by_rule_id[rule_event_id.id] = dict()
             if not self.__group_event_by_rule_id[rule_event_id.id].__contains__(group_event_name):
                 group_event = EventUtils.create_event(parent_id=rule_event_id,
-                                                      name=group_event_name)
+                                                      name=group_event_name,
+                                                      type='MatchGroup')
                 logger.debug(f"Create group Event '%s' for rule Event '%s'", group_event_name, rule_event_id)
                 self.__group_event_by_rule_id[rule_event_id.id][group_event_name] = group_event
                 self.send_parent_event(group_event)
@@ -160,7 +162,8 @@ class EventStore(AbstractService):
         attached_message_ids = self._get_attached_message_ids(recon_message)
         event = EventUtils.create_event(name=name,
                                         body=body,
-                                        attached_message_ids=attached_message_ids)
+                                        attached_message_ids=attached_message_ids,
+                                        type='Match')
         logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH_WITHIN_TIMEOUT, rule_event_id)
         self.send_event(event, rule_event_id, self.NO_MATCH_WITHIN_TIMEOUT)
 
@@ -172,7 +175,8 @@ class EventStore(AbstractService):
         event = EventUtils.create_event(name=name,
                                         body=body,
                                         status=EventStatus.SUCCESS if message.is_matched else EventStatus.FAILED,
-                                        attached_message_ids=attached_message_ids)
+                                        attached_message_ids=attached_message_ids,
+                                        type='Match')
         logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH, rule_event_id)
         self.send_event(event, rule_event_id, self.NO_MATCH)
 
@@ -183,7 +187,8 @@ class EventStore(AbstractService):
         event = EventUtils.create_event(name=event_name,
                                         status=EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids,
-                                        body=body)
+                                        body=body,
+                                        type='Match')
         logger.debug("Create '%s' Event for rule Event '%s'", self.ERRORS, rule_event_id)
         self.send_event(event, rule_event_id, self.ERRORS)
 
