@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import copy
 import logging
 import traceback
@@ -26,7 +27,8 @@ from th2_check2_recon.recon import Recon
 from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp
 from th2_check2_recon.services import Cache, MessageComparator
 
-logger = logging.getLogger()
+
+logger = logging.getLogger(__name__)
 
 
 class Rule:
@@ -113,12 +115,12 @@ class Rule:
     def process(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         self.check_no_match_within_timeout(message.timestamp)
 
-        self.group(message, attributes, *args, **kwargs)
+        self.__group_and_store_event(message, attributes, *args, **kwargs)
         if message.group_id is None:
             logger.debug("RULE '%s': Ignored  %s", self.name, message.get_all_info())
             return
 
-        self.hash(message, attributes, *args, **kwargs)
+        self.__hash_and_store_event(message, attributes, *args, **kwargs)
 
         index_of_main_group = self.__cache.index_of_group(message.group_id)
         if index_of_main_group == -1:
@@ -152,6 +154,26 @@ class Rule:
         for group in self.compared_groups[message.group_id]:
             if group.is_cleanable:
                 group.remove(message.hash)
+
+    def __group_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
+        try:
+            self.group(message, attributes, *args, **kwargs)
+        except Exception:
+            logger.exception(f"RULE '{self.name}': An exception was caught while running 'group'")
+            self.event_store.store_error(rule_event_id=self.rule_event.id,
+                                         event_name="An exception was caught while running 'group'",
+                                         error_message=traceback.format_exc(),
+                                         messages=message)
+
+    def __hash_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
+        try:
+            self.hash(message, attributes, *args, **kwargs)
+        except Exception:
+            logger.exception(f"RULE '{self.name}': An exception was caught while running 'hash'")
+            self.event_store.store_error(rule_event_id=self.rule_event.id,
+                                         event_name="An exception was caught while running 'hash'",
+                                         error_message=traceback.format_exc(),
+                                         messages=message)
 
     def __check_and_store_event(self, matched_messages: List[ReconMessage], attributes: tuple, *args, **kwargs):
         for msg in matched_messages:

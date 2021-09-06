@@ -22,7 +22,8 @@ from th2_grpc_common.common_pb2 import Event, Message
 from th2_grpc_common.common_pb2 import EventStatus, EventID, MessageID, FilterOperation, Direction
 from th2_grpc_util.util_pb2 import ComparisonEntryStatus, ComparisonEntry, ComparisonEntryType
 
-logger = logging.getLogger()
+
+logger = logging.getLogger(__name__)
 
 
 class EventUtils:

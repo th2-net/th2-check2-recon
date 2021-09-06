@@ -24,10 +24,11 @@ from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, 
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
     CompareMessageVsMessageTask, CompareMessageVsMessageResult
 
+from th2_grpc_util.message_comparator_service import MessageComparatorService
 from th2_check2_recon.common import EventUtils, MessageComponent, VerificationComponent
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class AbstractService(ABC):
@@ -177,9 +178,9 @@ class EventStore(AbstractService):
         self.send_event(event, rule_event_id, self.NO_MATCH)
 
     def store_error(self, rule_event_id: EventID, event_name: str, error_message: str,
-                    messages: [ReconMessage] = None):
+                    messages: List[ReconMessage] = None):
         body = EventUtils.create_event_body(MessageComponent(error_message))
-        attached_message_ids = self._get_attached_messages_ids(messages)
+        attached_message_ids = self._get_attached_message_ids(*messages)
         event = EventUtils.create_event(name=event_name,
                                         status=EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids,
@@ -199,13 +200,7 @@ class EventStore(AbstractService):
     def stop(self):
         self.__events_batch_collector.stop()
 
-    def _get_attached_message_ids(self, recon_msg):
-        try:
-            return [recon_msg.proto_message.metadata.id]
-        except AttributeError:
-            return []
-
-    def _get_attached_messages_ids(self, recon_msgs):
+    def _get_attached_message_ids(self, *recon_msgs):
         try:
             return [message.proto_message.metadata.id for message in recon_msgs]
         except AttributeError:
@@ -215,7 +210,7 @@ class EventStore(AbstractService):
 class MessageComparator(AbstractService):
 
     def __init__(self, comparator_service) -> None:
-        self.__comparator_service = comparator_service
+        self.__comparator_service: MessageComparatorService = comparator_service
 
     def compare(self, expected: Message, actual: Message,
                 settings: ComparisonSettings) -> CompareMessageVsMessageResult:
@@ -230,8 +225,10 @@ class MessageComparator(AbstractService):
             compare_response = self.__comparator_service.compareMessageVsMessage(request)
             for compare_result in compare_response.comparison_results:  # TODO  fix it
                 return compare_result
-        except Exception:
-            logger.exception(f'Error while comparing. CompareMessageVsMessageRequest: {request}')
+        except Exception as e:
+            logger.exception(f'Error while comparing. CompareMessageVsMessageRequest: {request}\n'
+                             f'Original exception: {e}')
+            raise
 
     def compare_messages(self, messages: [ReconMessage],
                          ignore_fields: [str] = None) -> Optional[VerificationComponent]:
@@ -256,6 +253,9 @@ class Cache(AbstractService):
         self.capacity = cache_size
         self.event_store = event_store
         self.rule_event = rule_event
+
+        if len(message_group_types.keys()) < 2:
+            raise Exception("At least two groups must be defined")
 
         self.message_groups: List[Cache.MessageGroup] = [
             Cache.MessageGroup(id=message_group_id,
