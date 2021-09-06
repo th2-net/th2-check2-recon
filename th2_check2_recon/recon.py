@@ -44,8 +44,12 @@ class Recon:
                                       report_name=self.__config.recon_name,
                                       event_batch_max_size=self.__config.event_batch_max_size,
                                       event_batch_send_interval=self.__config.event_batch_send_interval)
+
         self.message_comparator: Optional[MessageComparator] = message_comparator
         self.grpc_server: Optional[Server] = grpc_server
+
+        self.shared_dict = dict()
+
 
     def start(self):
         try:
