@@ -23,7 +23,6 @@ from th2_grpc_common.common_pb2 import MessageBatch, RequestStatus
 from th2_check2_recon.common import MessageUtils
 from th2_check2_recon.reconcommon import ReconMessage
 
-
 logger = logging.getLogger(__name__)
 
 
