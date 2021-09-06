@@ -164,7 +164,7 @@ class Rule:
             self.event_store.store_error(rule_event_id=self.rule_event.id,
                                          event_name="An exception was caught while running 'group'",
                                          error_message=traceback.format_exc(),
-                                         messages=message)
+                                         messages=[message])
 
     def __hash_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         try:
