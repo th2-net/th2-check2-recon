@@ -17,8 +17,8 @@ from abc import ABC, abstractmethod
 from threading import Lock, Timer
 from typing import Optional, Dict, List
 
-import sortedcollections
 from google.protobuf import text_format
+from sortedcontainers import SortedDict, SortedSet
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, Message
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
@@ -26,6 +26,7 @@ from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSet
 
 from th2_check2_recon.common import EventUtils, MessageComponent, VerificationComponent
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
+
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,7 @@ class EventStore(AbstractService):
                 self.send_parent_event(group_event)
 
             group_event = self.__group_event_by_rule_id[rule_event_id.id][group_event_name]
-            event.id.CopyFrom(EventUtils.new_event_id())
+            event.id.CopyFrom(EventUtils.create_event_id())
             event.parent_id.CopyFrom(group_event.id)
             self.__events_batch_collector.put_event(event)
         except Exception:
@@ -256,12 +257,15 @@ class MessageGroup:
 
         self.is_cleanable = True
         self.__data: Dict[int, List[ReconMessage]] = dict()  # {ReconMessage.hash: [ReconMessage]}
-        self.__hash_by_timestamp: Dict[int, List[int]] = sortedcollections.SortedDict()
-        self.__timestamp_within_timeout = sortedcollections.SortedSet()
+        self.__hash_by_timestamp: Dict[int, List[int]] = SortedDict()
+        self.__timestamp_within_timeout = SortedSet()
+
+    def get(self, hash_of_message: int) -> List[ReconMessage]:
+        return self.__data[hash_of_message]
 
     def put(self, message: ReconMessage):
         if self.size < self.capacity:
-            if self.contains(message.hash) and MessageGroupType.single in self.type:
+            if message.hash in self.__data and MessageGroupType.single in self.type:
                 self.__remove_same_hash_messages(message.hash)
             self.__data.setdefault(message.hash, []).append(message)
             self.__hash_by_timestamp.setdefault(message.timestamp, []).append(message.hash)
@@ -284,15 +288,14 @@ class MessageGroup:
             if len(self.__hash_by_timestamp[timestamp]) == 0:
                 del self.__hash_by_timestamp[timestamp]
 
-            if self.__timestamp_within_timeout.__contains__(timestamp) and \
-                    not self.__hash_by_timestamp.__contains__(timestamp):
+            if timestamp in self.__timestamp_within_timeout and timestamp not in self.__hash_by_timestamp:
                 self.__timestamp_within_timeout.remove(timestamp)
 
             self.size -= 1
         del self.__data[same_hash]
 
     def __remove_oldest_message(self, cause: str = None):
-        oldest_timestamp = self.__hash_by_timestamp.keys().__iter__().__next__()
+        oldest_timestamp = next(iter(self.__hash_by_timestamp))
         oldest_hash = self.__hash_by_timestamp[oldest_timestamp][0]
         oldest_message = self.__data[oldest_hash][0]
 
@@ -310,17 +313,10 @@ class MessageGroup:
         if len(self.__hash_by_timestamp[oldest_timestamp]) == 0:
             del self.__hash_by_timestamp[oldest_timestamp]
 
-        if self.__timestamp_within_timeout.__contains__(oldest_timestamp) and \
-                not self.__hash_by_timestamp.__contains__(oldest_timestamp):
+        if oldest_timestamp in self.__timestamp_within_timeout and oldest_timestamp not in self.__hash_by_timestamp:
             self.__timestamp_within_timeout.remove(oldest_timestamp)
 
         self.size -= 1
-
-    def get(self, hash_of_message: int) -> List[ReconMessage]:
-        return self.__data[hash_of_message]
-
-    def contains(self, hash_of_message: int) -> bool:
-        return self.__data.__contains__(hash_of_message)
 
     def check_messages_out_of_timeout(self, lower_bound_timestamp: int):
         timestamp_out_of_timeout = []
@@ -329,6 +325,7 @@ class MessageGroup:
                 timestamp_out_of_timeout.append(timestamp)
             else:
                 break
+
         for timestamp in timestamp_out_of_timeout:
             self.__timestamp_within_timeout.remove(timestamp)
             for hash_of_message in self.__hash_by_timestamp[timestamp]:
@@ -339,12 +336,3 @@ class MessageGroup:
         cause = "The message was deleted because the Recon stopped"
         while len(self.__data) != 0:
             self.__remove_oldest_message(cause)
-
-    def __iter__(self):
-        """Generator that yields all messages in the group"""
-        for recon_mgs_lst in self.__data.values():
-            for msg in recon_mgs_lst:
-                yield msg
-
-    def __contains__(self, hash_of_message: int):
-        return hash_of_message in self.__data

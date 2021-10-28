@@ -42,11 +42,11 @@ class MessageHandler(AbstractHandler):
             for proto_message in batch.messages:
                 message = ReconMessage(proto_message=proto_message)
                 self._rule.process(message, attributes)
-                logger.debug("  Processed '%s' id='%s'",
+                logger.debug("Processed '%s' id='%s'",
                              proto_message.metadata.message_type,
                              MessageUtils.str_message_id(proto_message))
 
-            logger.debug("  Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
+            logger.debug("Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
         except Exception:
             logger.exception(f'Rule: {self._rule.get_name()}. '
                              f'An error occurred while processing the received message. '
@@ -60,7 +60,7 @@ class GRPCHandler(Check2ReconServicer):
 
     def submitGroupBatch(self, request, context):
         try:
-            logger.debug(f'submitGroupBatch request: {MessageToString(request, as_one_line=True)}')
+            logger.debug("submitGroupBatch request '%s'", MessageToString(request, as_one_line=True))
 
             messages = [message.message for group in request.groups
                         for message in group.messages if message.HasField('message')]
@@ -76,8 +76,9 @@ class GRPCHandler(Check2ReconServicer):
                                          f'An error occurred while processing the message. '
                                          f'Message: {MessageToString(proto_message, as_one_line=True)}')
 
-                logger.debug(f"Processed '{proto_message.metadata.message_type}' "
-                             f"id='{MessageUtils.str_message_id(proto_message)}'")
+                logger.debug("Processed '%s' id='%s'",
+                             proto_message.metadata.message_type,
+                             MessageUtils.str_message_id(proto_message))
 
             return RequestStatus(status=RequestStatus.SUCCESS, message='Successfully processed batch')
         except Exception as e:

@@ -40,28 +40,35 @@ class EventUtils:
         return EventUtils.__ComponentEncoder()
 
     @staticmethod
-    def new_event_id():
+    def create_event_id():
         return EventID(id=str(uuid.uuid1()))
 
     @staticmethod
-    def create_event(name: str, id: EventID = None, parent_id: EventID = None,
-                     status: EventStatus = EventStatus.SUCCESS, body: bytes = None,
-                     attached_message_ids: [MessageID] = None) -> Event:
-        if id is None:
-            id = EventUtils.new_event_id()
-        if attached_message_ids is None:
-            attached_message_ids = []
-        start_time = datetime.now()
-        seconds = int(start_time.timestamp())
-        nanos = int(start_time.microsecond * 1000)
-        return Event(id=id,
-                     parent_id=parent_id,
-                     start_timestamp=Timestamp(seconds=seconds, nanos=nanos),
-                     end_timestamp=Timestamp(seconds=seconds, nanos=nanos),
-                     status=status,
-                     name=name,
-                     body=body,
-                     attached_message_ids=attached_message_ids)
+    def create_timestamp():
+        timestamp = Timestamp()
+        timestamp.GetCurrentTime()
+        return timestamp
+
+    @staticmethod
+    def create_event(id: EventID = None,
+                     parent_id: EventID = None,
+                     start_timestamp: Timestamp = None,
+                     end_timestamp: Timestamp = None,
+                     status: EventStatus = 'SUCCESS',
+                     name: str = 'Event',
+                     type: str = None,
+                     body: bytes = b'',
+                     attached_message_ids: [MessageID] = None):
+        return Event(
+            id=id or EventUtils.create_event_id(),
+            parent_id=parent_id,
+            start_timestamp=start_timestamp or EventUtils.create_timestamp(),
+            end_timestamp=end_timestamp or EventUtils.create_timestamp(),
+            status=status,
+            name=name,
+            type=type,
+            body=body,
+            attached_message_ids=attached_message_ids)
 
 
 class MessageUtils:
@@ -92,12 +99,11 @@ class ComparatorUtils:
 
     @staticmethod
     def __get_result_count(comparison_result, status) -> int:
-        count = 0
+        count = sum(ComparatorUtils.__get_result_count(sub_result, status)
+                    for sub_result in comparison_result.fields.values())
+
         if status == comparison_result.status:
             count += 1
-
-        for sub_result in comparison_result.fields.values():
-            count += ComparatorUtils.__get_result_count(sub_result, status)
 
         return count
 
@@ -132,18 +138,18 @@ class TableComponent:
         self.__column_names = column_names
 
     def add_row(self, *values):
-        row = {self.__column_names[i]: values[i] for i in range(len(values))}
-        self.rows.append(row)
+        self.rows.append({column_name: value for column_name, value in zip(self.__column_names, values)})
 
 
 class VerificationComponent:
 
     def __init__(self, comparison_entry: ComparisonEntry) -> None:
         self.type = 'verification'
-        self.fields = {field_name: VerificationComponent.VerificationEntry(comparison_entry.fields[field_name])
-                       for field_name in comparison_entry.fields.keys()}
-        self.status = EventStatus.FAILED if ComparatorUtils.get_status_type(
-            comparison_entry) == ComparisonEntryStatus.FAILED else EventStatus.SUCCESS
+        self.fields = {field_name: VerificationComponent.VerificationEntry(entry)
+                       for field_name, entry in comparison_entry.fields.items()}
+        self.status = EventStatus.FAILED \
+            if ComparatorUtils.get_status_type(comparison_entry) == ComparisonEntryStatus.FAILED \
+            else EventStatus.SUCCESS
 
     class VerificationEntry:
 
@@ -157,6 +163,5 @@ class VerificationComponent:
             self.fields = dict()
 
             if comparison_entry.type == ComparisonEntryType.COLLECTION:
-                for field_name in comparison_entry.fields.keys():
-                    self.fields[field_name] = \
-                        VerificationComponent.VerificationEntry(comparison_entry.fields[field_name])
+                for field_name, entry in comparison_entry.fields.items():
+                    self.fields[field_name] = VerificationComponent.VerificationEntry(entry)
