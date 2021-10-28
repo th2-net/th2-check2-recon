@@ -24,8 +24,9 @@ from th2_grpc_common.common_pb2 import Event
 from th2_check2_recon.common import EventUtils, MessageComponent
 from th2_check2_recon.handler import MessageHandler, AbstractHandler
 from th2_check2_recon.recon import Recon
-from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp, MessageGroupType
+from th2_check2_recon.reconcommon import ReconMessage, get_message_timestamp, MessageGroupType
 from th2_check2_recon.services import MessageComparator, MessageGroup
+
 
 logger = logging.getLogger(__name__)
 
@@ -56,16 +57,10 @@ class Rule:
                                                     event_store=self.__event_store,
                                                     parent_event=self.rule_event)
 
-        multi_cnt = 0
-        for group in message_groups.values():
-            if MessageGroupType.multi in group.type:
-                multi_cnt += 1
+        multi_groups_count = sum(MessageGroupType.multi in group.type for group in message_groups.values())
 
         for group in message_groups.values():
-            if multi_cnt == 1:
-                if MessageGroupType.single in group.type:
-                    group.is_cleanable = False
-            elif multi_cnt > 1:
+            if multi_groups_count == 1 and MessageGroupType.single in group.type or multi_groups_count > 1:
                 group.is_cleanable = False
         return message_groups
 
@@ -74,8 +69,8 @@ class Rule:
                                              parent_id=self.__event_store.root_event.id,
                                              body=EventUtils.create_event_body(
                                                  MessageComponent(message=self.get_description())))
-        logger.debug("Created report Event for Rule '%s': %s", self.name,
-                     text_format.MessageToString(rule_event, as_one_line=True))
+        logger.debug("Created report Event for Rule '%s': %s",
+                     self.name, text_format.MessageToString(rule_event, as_one_line=True))
         self.__event_store.send_parent_event(rule_event)
         return rule_event
 
@@ -130,8 +125,8 @@ class Rule:
 
     def _description_of_groups_bridge(self) -> dict:
         result = dict()
-        for (key, value) in self.description_of_groups().items():
-            if type(value) is not set:
+        for key, value in self.description_of_groups().items():
+            if not isinstance(value, set):
                 result[key] = {value}
             else:
                 result[key] = value
@@ -176,8 +171,8 @@ class Rule:
         if check_event is None:
             return
 
-        max_timestamp_msg = max(matched_messages, key=_get_msg_timestamp)
-        min_timestamp_msg = min(matched_messages, key=_get_msg_timestamp)
+        max_timestamp_msg = max(matched_messages, key=get_message_timestamp)
+        min_timestamp_msg = min(matched_messages, key=get_message_timestamp)
 
         if max_timestamp_msg.timestamp - min_timestamp_msg.timestamp > self.match_timeout:
             self.__event_store.store_matched_out_of_timeout(rule_event_id=self.rule_event.id,
@@ -187,11 +182,7 @@ class Rule:
                                              check_event=check_event)
 
     def log_groups_size(self):
-        res = ""
-        for group in self.__message_groups.values():
-            res += f"'{group.id}': {group.size} msg, "
-        res = "[" + res.strip(" ,") + "]"
-        return res
+        return "[" + ', '.join(f"'{group.id}': {group.size} msg" for group in self.__message_groups.values()) + "]"
 
     def __check_messages_out_of_timeout(self, actual_time: int):
         lower_bound_timestamp = actual_time - self.match_timeout
