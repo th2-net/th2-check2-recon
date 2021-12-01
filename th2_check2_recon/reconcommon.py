@@ -13,37 +13,36 @@
 # limitations under the License.
 
 from enum import Enum
+from typing import Optional
 
 from th2_check2_recon.common import MessageUtils
 
 
 class ReconMessage:
+
     __slots__ = ("proto_message", "group_info", "group_id", "hash_info", "hash", "is_matched",
-                 "is_check_no_match_within_timeout", "_timestamp")
+                 "is_ouf_of_timeout", "_timestamp")
 
     def __init__(self, proto_message) -> None:
         self.proto_message = proto_message
         self.group_info = dict()
-        self.group_id = None
+        self.group_id: Optional[str] = None
         self.hash_info = dict()
-        self.hash = None
+        self.hash: Optional[int] = None
         self.is_matched = False
-        self.is_check_no_match_within_timeout = False
+        self.is_ouf_of_timeout = False
+        self._timestamp = None
 
     @property
     def timestamp(self):
-        try:
-            return self._timestamp
-        except AttributeError:
+        if self._timestamp is None:
             self._timestamp = MessageUtils.get_timestamp_ns(self.proto_message)
-            return self._timestamp
+
+        return self._timestamp
 
     @staticmethod
     def get_info(info_dict: dict) -> str:
-        message = ""
-        for key in info_dict.keys():
-            message += f"'{key}': {info_dict[key]}, "
-        return '[' + message.strip(' ,') + ']'
+        return '[' + ', '.join(f"'{key}': {value}" for key, value in info_dict.items()) + ']'
 
     def get_all_info(self) -> str:
         result = f"id='{MessageUtils.str_message_id(self.proto_message)}'"
@@ -62,7 +61,7 @@ class ReconMessage:
         return result
 
 
-def _get_msg_timestamp(msg: ReconMessage):
+def get_message_timestamp(msg: ReconMessage):
     """Used instead of lambda in Rule.__check_and_store_event"""
     return msg.timestamp
 
