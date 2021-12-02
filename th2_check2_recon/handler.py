@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import time
 from abc import ABC, abstractmethod
 
 from google.protobuf.text_format import MessageToString
@@ -41,7 +42,14 @@ class MessageHandler(AbstractHandler):
         try:
             for proto_message in batch.messages:
                 message = ReconMessage(proto_message=proto_message)
+
+                process_timer = self._rule.RULE_PROCESSING_TIME
+                start_time = time.time()
+
                 self._rule.process(message, attributes)
+
+                process_timer.observe(time.time() - start_time)
+
                 logger.debug("  Processed '%s' id='%s'",
                              proto_message.metadata.message_type,
                              MessageUtils.str_message_id(proto_message))
@@ -69,12 +77,18 @@ class GRPCHandler(Check2ReconServicer):
                 message = ReconMessage(proto_message=proto_message)
 
                 for rule in self._rules:
+
+                    process_timer = rule.RULE_PROCESSING_TIME
+                    start_time = time.time()
+
                     try:
                         rule.process((), message)
                     except Exception:
                         logger.exception(f'Rule: {rule.get_name()}. '
                                          f'An error occurred while processing the message. '
                                          f'Message: {MessageToString(proto_message, as_one_line=True)}')
+                    finally:
+                        process_timer.observe(time.time() - start_time)
 
                 logger.debug(f"Processed '{proto_message.metadata.message_type}' "
                              f"id='{MessageUtils.str_message_id(proto_message)}'")
