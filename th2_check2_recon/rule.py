@@ -60,7 +60,7 @@ class Rule:
             self.compared_groups[group_id] = tuple(
                 mg for mg in self.__cache.message_groups if mg.id != group_id)
 
-        self.RULE_PROCESSING_TIME = Histogram('th2_recon_rule_processing_time',
+        self.RULE_PROCESSING_TIME = Histogram(f'th2_recon_{self.name.lower()}_rule_processing_time',
                                               'Time of processing rule',
                                               buckets=common_metrics.DEFAULT_BUCKETS)
 
