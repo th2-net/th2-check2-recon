@@ -19,6 +19,7 @@ from abc import abstractmethod
 from typing import List, Optional, Dict
 
 from google.protobuf import text_format
+from numba import njit
 from prometheus_client import Histogram
 from th2_common.schema.metrics import common_metrics
 from th2_grpc_common.common_pb2 import Event
@@ -118,6 +119,7 @@ class Rule:
         new_message.group_id = shared_group_id
         self.recon.put_shared_message(shared_group_id, new_message, attributes)
 
+    @njit
     def process(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         self.check_no_match_within_timeout(message.timestamp)
 
