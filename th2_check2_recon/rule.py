@@ -19,6 +19,8 @@ from abc import abstractmethod
 from typing import List, Optional, Dict
 
 from google.protobuf import text_format
+from prometheus_client import Histogram
+from th2_common.schema.metrics import common_metrics
 from th2_grpc_common.common_pb2 import Event
 
 from th2_check2_recon.common import EventUtils, MessageComponent
@@ -57,6 +59,10 @@ class Rule:
         for group_id in self.description_of_groups_bridge():
             self.compared_groups[group_id] = tuple(
                 mg for mg in self.__cache.message_groups if mg.id != group_id)
+
+        self.RULE_PROCESSING_TIME = Histogram(f'th2_recon_{self.name.lower()}_rule_processing_time',
+                                              'Time of processing rule',
+                                              buckets=common_metrics.DEFAULT_BUCKETS)
 
         logger.info("Rule '%s' initialized", self.name)
 
