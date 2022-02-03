@@ -27,7 +27,6 @@ from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSet
 from th2_check2_recon.common import EventUtils, MessageComponent, VerificationComponent
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -246,19 +245,28 @@ class MessageComparator(AbstractService):
 
 class Cache(AbstractService):
 
+    shared_message_groups = list()
+
     def __init__(self, message_group_types: dict, cache_size: int, event_store: EventStore,
                  rule_event: Event) -> None:
         self.capacity = cache_size
         self.event_store = event_store
         self.rule_event = rule_event
 
-        self.message_groups: List[Cache.MessageGroup] = [
+        self.nonshared_message_groups: List[Cache.MessageGroup] = [
             Cache.MessageGroup(id=message_group_id,
                                capacity=cache_size,
-                               type=message_group_types[message_group_id],
+                               type=message_group_type,
                                event_store=event_store,
                                parent_event=self.rule_event)
-            for message_group_id in message_group_types.keys()]
+            for message_group_id, message_group_type in message_group_types.items() if MessageGroupType.shared not in message_group_type]
+        self.shared_message_groups = [
+            Cache.MessageGroup(id=message_group_id,
+                               capacity=cache_size,
+                               type=message_group_type,
+                               event_store=event_store,
+                               parent_event=self.rule_event)
+            for message_group_id, message_group_type in message_group_types.items() if MessageGroupType.shared in message_group_type]
 
         multi_cnt = 0
         for group in self.message_groups:
@@ -271,6 +279,10 @@ class Cache(AbstractService):
                     group.is_cleanable = False
             elif multi_cnt > 1:
                 group.is_cleanable = False
+
+    @property
+    def message_groups(self):
+        return self.nonshared_message_groups + self.shared_message_groups
 
     def index_of_group(self, group_id: str) -> int:
         for idx, group in enumerate(self.message_groups):

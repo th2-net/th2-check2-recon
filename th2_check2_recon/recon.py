@@ -27,7 +27,6 @@ from th2_check2_recon.handler import GRPCHandler
 from th2_check2_recon.reconcommon import MessageGroupType, ReconMessage
 from th2_check2_recon.services import EventStore, MessageComparator
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -104,3 +103,4 @@ class Recon:
             groups = rule.description_of_groups_bridge()
             if shared_group_id in groups.keys() and MessageGroupType.shared in groups[shared_group_id]:
                 rule.process(new_message, attributes)
+                break
