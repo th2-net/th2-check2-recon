@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import enum
 import logging
 import uuid
 from datetime import datetime
@@ -43,10 +43,17 @@ class EventUtils:
     def new_event_id():
         return EventID(id=str(uuid.uuid1()))
 
+    class EventType(enum.Enum):
+        ROOT = 'ReconRoot'
+        RULE = 'ReconRule'
+        STATUS = 'ReconStatus'
+        EVENT = 'ReconEvent'
+        UNKNOWN = ''
+
     @staticmethod
     def create_event(name: str, id: EventID = None, parent_id: EventID = None,
                      status: EventStatus = EventStatus.SUCCESS, body: bytes = None,
-                     attached_message_ids: [MessageID] = None) -> Event:
+                     attached_message_ids: [MessageID] = None, type: EventType = EventType.UNKNOWN) -> Event:
         if id is None:
             id = EventUtils.new_event_id()
         if attached_message_ids is None:
@@ -61,6 +68,7 @@ class EventUtils:
                      status=status,
                      name=name,
                      body=body,
+                     type=type.value,
                      attached_message_ids=attached_message_ids)
 
 
