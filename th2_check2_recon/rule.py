@@ -49,7 +49,7 @@ class Rule:
             EventUtils.create_event(name=self.name,
                                     parent_id=recon.event_store.root_event.id,
                                     body=EventUtils.create_event_body(MessageComponent(message=self.get_description())),
-                                    type='ReconRule')
+                                    type=EventUtils.EventType.RULE)
         logger.debug("Created report Event for Rule '%s': %s", self.name,
                      text_format.MessageToString(self.rule_event, as_one_line=True))
         self.event_store.send_parent_event(self.rule_event)
