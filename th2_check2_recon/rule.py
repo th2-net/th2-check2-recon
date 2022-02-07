@@ -169,7 +169,7 @@ class Rule:
             self.event_store.store_error(rule_event_id=self.rule_event.id,
                                          event_name="An exception was caught while running 'group'",
                                          error_message=traceback.format_exc(),
-                                         messages=message)
+                                         messages=[message])
 
     def __hash_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         try:
@@ -179,7 +179,7 @@ class Rule:
             self.event_store.store_error(rule_event_id=self.rule_event.id,
                                          event_name="An exception was caught while running 'hash'",
                                          error_message=traceback.format_exc(),
-                                         messages=message)
+                                         messages=[message])
 
     def __check_and_store_event(self, matched_messages: List[ReconMessage], attributes: tuple, *args, **kwargs):
         for msg in matched_messages:
