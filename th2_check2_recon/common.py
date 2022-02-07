@@ -46,7 +46,7 @@ class EventUtils:
     @staticmethod
     def create_event(name: str, id: EventID = None, parent_id: EventID = None,
                      status: EventStatus = EventStatus.SUCCESS, body: bytes = None,
-                     attached_message_ids: [MessageID] = None) -> Event:
+                     attached_message_ids: [MessageID] = None, type: str = None) -> Event:
         if id is None:
             id = EventUtils.new_event_id()
         if attached_message_ids is None:
@@ -61,6 +61,7 @@ class EventUtils:
                      status=status,
                      name=name,
                      body=body,
+                     type=type,
                      attached_message_ids=attached_message_ids)
 
 
