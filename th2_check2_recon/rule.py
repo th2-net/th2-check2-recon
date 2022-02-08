@@ -62,8 +62,8 @@ class Rule:
             self.compared_groups[group_id] = tuple(
                 mg for mg in self.__cache.message_groups if mg.id != group_id)
 
-        self.RULE_PROCESSING_TIME = Histogram(f'th2_recon_{re.sub('[^a-zA-Z0-9_: ]', '', self.name).lower().replace(' ', '_')}_rule_processing_time',
-                                              'Time of processing rule',
+        self.RULE_PROCESSING_TIME = Histogram(f"th2_recon_{re.sub('[^a-zA-Z0-9_: ]', '', self.name).lower().replace(' ', '_')}_rule_processing_time",
+                                              'Time of the message processing with a rule',
                                               buckets=common_metrics.DEFAULT_BUCKETS)
 
         logger.info("Rule '%s' initialized", self.name)
