@@ -62,6 +62,8 @@ class Rule:
                                               'Time of the message processing with a rule',
                                               buckets=common_metrics.DEFAULT_BUCKETS)
 
+        self.reprocess_queue = set()
+
         logger.info("Rule '%s' initialized", self.name)
 
     @abstractmethod

@@ -344,6 +344,7 @@ class Cache(AbstractService):
 
         def remove(self, hash_of_message: int, cause="", remove_all=True):
             message_for_remove = None
+            removed_messages = []
             if remove_all:
                 for message_for_remove in self.data[hash_of_message]:
                     timestamp_for_remove = message_for_remove.timestamp
@@ -351,6 +352,7 @@ class Cache(AbstractService):
                     if len(self.hash_by_sorted_timestamp[timestamp_for_remove]) == 0:
                         del self.hash_by_sorted_timestamp[timestamp_for_remove]
                     self.size -= 1
+                removed_messages = self.data[hash_of_message]
                 del self.data[hash_of_message]
             else:
                 message_for_remove = self.data[hash_of_message][0]
@@ -364,11 +366,13 @@ class Cache(AbstractService):
                 if len(self.hash_by_sorted_timestamp[timestamp_for_remove]) == 0:
                     del self.hash_by_sorted_timestamp[timestamp_for_remove]
                 self.size -= 1
+                removed_messages = [message_for_remove]
 
             if len(cause) != 0:
                 self.event_store.store_no_match(rule_event_id=self.parent_event.id,
                                                 message=message_for_remove,
                                                 event_message=cause)
+            return removed_messages
 
         def clear(self):
             cause = "The message was deleted because the Recon stopped"
