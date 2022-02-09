@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import itertools
 import logging
 import re
 import traceback
@@ -65,6 +66,8 @@ class Rule:
         self.RULE_PROCESSING_TIME = Histogram(f"th2_recon_{re.sub('[^a-zA-Z0-9_: ]', '', self.name).lower().replace(' ', '_')}_rule_processing_time",
                                               'Time of the message processing with a rule',
                                               buckets=common_metrics.DEFAULT_BUCKETS)
+
+        self.reprocess_queue = set()
 
         logger.info("Rule '%s' initialized", self.name)
 
@@ -159,9 +162,17 @@ class Rule:
                     self.__cache.message_groups[index_of_compared_group].data[message.hash][group_indices[i]])
             self.__check_and_store_event(matched_messages, attributes, *args, **kwargs)
 
+        removed_messages = []
         for group in self.compared_groups[message.group_id]:
             if group.is_cleanable:
-                group.remove(message.hash)
+                removed_messages.append(group.remove(message.hash))
+
+        if message.hash in self.reprocess_queue:
+            for removed_message in itertools.chain.from_iterable(removed_messages):
+                self.process(removed_message, attributes)
+
+    def queue_for_retransmitting(self, hash: int):
+        self.reprocess_queue.add(hash)
 
     def __group_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         try:
