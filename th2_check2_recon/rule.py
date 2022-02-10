@@ -57,11 +57,6 @@ class Rule:
 
         self.__cache = Cache(self.description_of_groups_bridge(), cache_size, self.event_store, self.rule_event)
 
-        self.compared_groups: Dict[str, tuple] = {}  # {ReconMessage.group_id: (Cache.MessageGroup, ..)}
-        for group_id in self.description_of_groups_bridge():
-            self.compared_groups[group_id] = tuple(
-                mg for mg in self.__cache.message_groups if mg.id != group_id)
-
         self.RULE_PROCESSING_TIME = Histogram(f"th2_recon_{re.sub('[^a-zA-Z0-9_: ]', '', self.name).lower().replace(' ', '_')}_rule_processing_time",
                                               'Time of the message processing with a rule',
                                               buckets=common_metrics.DEFAULT_BUCKETS)
@@ -90,11 +85,11 @@ class Rule:
 
     def description_of_groups_bridge(self) -> dict:
         result = dict()
-        for (key, value) in self.description_of_groups().items():
-            if type(value) is not set:
-                result[key] = {value}
-            else:
+        for key, value in self.description_of_groups().items():
+            if isinstance(value, set):
                 result[key] = value
+            else:
+                result[key] = {value}
         return result
 
     @abstractmethod
@@ -139,29 +134,27 @@ class Rule:
         else:
             logger.debug("RULE '%s': Received %s", self.name, message.get_all_info())
 
-        group_indices = []
-        group_sizes = []
-
-        # Check if each group has messages with compared hash else put the message to cache
-        for compared_group in self.compared_groups[message.group_id]:
-            if message.hash not in compared_group:
+        for match in self.find_matched_messages(message):
+            if match is None:  # Will return None if some of the groups did not contain the message.
                 self.__cache.message_groups[index_of_main_group].put(message)
                 return
-            group_indices.append(0)
-            group_sizes.append(len(compared_group.get(message.hash)))
+            else:
+                self.__check_and_store_event(match, attributes, *args, **kwargs)
 
-        group_indices[-1] = -1
-        while self.__increment_indices(group_sizes, group_indices):
-            matched_messages = [message]
-            for i in range(len(group_indices)):
-                index_of_compared_group = i if i < index_of_main_group else i + 1
-                matched_messages.append(
-                    self.__cache.message_groups[index_of_compared_group].data[message.hash][group_indices[i]])
-            self.__check_and_store_event(matched_messages, attributes, *args, **kwargs)
-
-        for group in self.compared_groups[message.group_id]:
-            if group.is_cleanable:
+        for group in self.__cache.message_groups:
+            if group.id != message.group_id and group.is_cleanable:
                 group.remove(message.hash)
+
+    def find_matched_messages(self, message):
+        matched_messages = list()
+        for compared_group in self.__cache.message_groups:
+            if compared_group.id == message.group_id:
+                continue
+            if message.hash not in compared_group:
+                return None
+            matched_messages.append(compared_group.data[message.hash])
+        for match in zip(*matched_messages):
+            yield [message] + list(match)
 
     def __group_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         try:
@@ -217,10 +210,7 @@ class Rule:
         return res
 
     def cache_size(self):
-        res = 0
-        for group in self.__cache.message_groups:
-            res += group.size
-        return res
+        return sum(group.size for group in self.__cache.message_groups)
 
     def check_no_match_within_timeout(self, actual_time: int):
         for group in self.__cache.message_groups:
@@ -228,16 +218,3 @@ class Rule:
 
     def stop(self):
         self.__cache.stop()
-
-    @staticmethod
-    def __increment_indices(sizes: list, indices: list) -> bool:
-        indices[-1] += 1
-        for i in range(len(sizes) - 1, -1, -1):
-            if indices[i] == sizes[i]:
-                if i == 0:
-                    return False
-                indices[i] = 0
-                indices[i - 1] += 1
-            else:
-                break
-        return True
