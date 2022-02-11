@@ -245,13 +245,12 @@ class MessageComparator(AbstractService):
 
 class Cache(AbstractService):
 
-    shared_message_groups = list()
-
     def __init__(self, message_group_types: dict, cache_size: int, event_store: EventStore,
-                 rule_event: Event) -> None:
+                 rule_event: Event, rule) -> None:
         self.capacity = cache_size
         self.event_store = event_store
         self.rule_event = rule_event
+        self.rule = rule
 
         self.nonshared_message_groups: List[Cache.MessageGroup] = [
             Cache.MessageGroup(id=message_group_id,
@@ -260,7 +259,7 @@ class Cache(AbstractService):
                                event_store=event_store,
                                parent_event=self.rule_event)
             for message_group_id, message_group_type in message_group_types.items() if MessageGroupType.shared not in message_group_type]
-        self.shared_message_groups = [
+        self.rule.recon.shared_message_groups += [
             Cache.MessageGroup(id=message_group_id,
                                capacity=cache_size,
                                type=message_group_type,
@@ -282,7 +281,7 @@ class Cache(AbstractService):
 
     @property
     def message_groups(self):
-        return self.nonshared_message_groups + self.shared_message_groups
+        return self.nonshared_message_groups + self.rule.recon.shared_message_groups
 
     def index_of_group(self, group_id: str) -> int:
         for idx, group in enumerate(self.message_groups):
