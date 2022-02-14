@@ -55,7 +55,7 @@ class Rule:
                      text_format.MessageToString(self.rule_event, as_one_line=True))
         self.event_store.send_parent_event(self.rule_event)
 
-        self.__cache = Cache(self.description_of_groups_bridge(), cache_size, self.event_store, self.rule_event)
+        self.__cache = Cache(self, cache_size)
 
         self.compared_groups: Dict[str, tuple] = {}  # {ReconMessage.group_id: (Cache.MessageGroup, ..)}
         for group_id in self.description_of_groups_bridge():
