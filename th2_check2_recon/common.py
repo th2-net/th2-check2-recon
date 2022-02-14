@@ -81,18 +81,10 @@ class MessageUtils:
     @staticmethod
     def str_message_id(message: Message) -> str:
         res = ""
-        try:
-            res += str(message.metadata.id.connection_id.session_alias) + ':'
-        except AttributeError:
-            res += "None:"
-        try:
-            res += str(Direction.Name(message.metadata.id.direction)) + ':'
-        except AttributeError:
-            res += "None:"
-        try:
-            res += str(message.metadata.id.sequence)
-        except AttributeError:
-            res += "None"
+        params = message.metadata.id.connection_id.session_alias, Direction.Name(message.metadata.id.direction), \
+                 message.metadata.id.sequence
+        for param in params:
+            res += str(param) + ':' if param else 'None: '
         return res
 
 
@@ -100,12 +92,10 @@ class ComparatorUtils:
 
     @staticmethod
     def __get_result_count(comparison_result, status) -> int:
-        count = 0
+        count = sum(ComparatorUtils.__get_result_count(sub_result, status)
+                    for sub_result in comparison_result.fields.values())
         if status == comparison_result.status:
             count += 1
-
-        for sub_result in comparison_result.fields.values():
-            count += ComparatorUtils.__get_result_count(sub_result, status)
 
         return count
 
@@ -140,16 +130,15 @@ class TableComponent:
         self.__column_names = column_names
 
     def add_row(self, *values):
-        row = {self.__column_names[i]: values[i] for i in range(len(values))}
-        self.rows.append(row)
+        self.rows.append({column_name: value for column_name, value in zip(self.__column_names, values)})
 
 
 class VerificationComponent:
 
     def __init__(self, comparison_entry: ComparisonEntry) -> None:
         self.type = 'verification'
-        self.fields = {field_name: VerificationComponent.VerificationEntry(comparison_entry.fields[field_name])
-                       for field_name in comparison_entry.fields.keys()}
+        self.fields = {field_name: VerificationComponent.VerificationEntry(entry)
+                       for field_name, entry in comparison_entry.fields.items()}
         self.status = EventStatus.FAILED if ComparatorUtils.get_status_type(
             comparison_entry) == ComparisonEntryStatus.FAILED else EventStatus.SUCCESS
 
@@ -165,6 +154,5 @@ class VerificationComponent:
             self.fields = dict()
 
             if comparison_entry.type == ComparisonEntryType.COLLECTION:
-                for field_name in comparison_entry.fields.keys():
-                    self.fields[field_name] = \
-                        VerificationComponent.VerificationEntry(comparison_entry.fields[field_name])
+                for field_name, entry in comparison_entry.fields.items():
+                    self.fields[field_name] = VerificationComponent.VerificationEntry(entry)

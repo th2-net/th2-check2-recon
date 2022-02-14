@@ -203,11 +203,7 @@ class Rule:
                                            check_event=check_event)
 
     def log_groups_size(self):
-        res = ""
-        for group in self.__cache.message_groups:
-            res += f"'{group.id}': {group.size} msg, "
-        res = "[" + res.strip(" ,") + "]"
-        return res
+        return "[" + ', '.join(f"'{group.id}': {group.size} msg" for group in self.__cache.message_groups) + "]"
 
     def cache_size(self):
         return sum(group.size for group in self.__cache.message_groups)

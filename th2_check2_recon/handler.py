@@ -50,11 +50,11 @@ class MessageHandler(AbstractHandler):
 
                 process_timer.observe(time.time() - start_time)
 
-                logger.debug("  Processed '%s' id='%s'",
+                logger.debug("Processed '%s' id='%s'",
                              proto_message.metadata.message_type,
                              MessageUtils.str_message_id(proto_message))
 
-            logger.debug("  Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
+            logger.debug("Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
         except Exception:
             logger.exception(f'Rule: {self._rule.get_name()}. '
                              f'An error occurred while processing the received message. '

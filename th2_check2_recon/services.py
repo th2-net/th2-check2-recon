@@ -264,13 +264,10 @@ class Cache(AbstractService):
                                parent_event=self.rule_event)
             for message_group_id in message_group_types.keys()]
 
-        multi_cnt = 0
-        for group in self.message_groups:
-            if MessageGroupType.multi in group.type:
-                multi_cnt += 1
+        has_multi = any(MessageGroupType.multi in group.type for group in self.message_groups)
 
         for group in self.message_groups:
-            if multi_cnt >= 1:
+            if has_multi:
                 if MessageGroupType.single in group.type:
                     group.is_cleanable = False
 

@@ -29,21 +29,17 @@ class ReconMessage:
         self.hash = None
         self.is_matched = False
         self.is_check_no_match_within_timeout = False
+        self._timestamp = None
 
     @property
     def timestamp(self):
-        try:
-            return self._timestamp
-        except AttributeError:
+        if self._timestamp is None:
             self._timestamp = MessageUtils.get_timestamp_ns(self.proto_message)
-            return self._timestamp
+        return self._timestamp
 
     @staticmethod
     def get_info(info_dict: dict) -> str:
-        message = ""
-        for key in info_dict.keys():
-            message += f"'{key}': {info_dict[key]}, "
-        return '[' + message.strip(' ,') + ']'
+        return '[' + ', '.join(f"'{key}': {value}" for key, value in info_dict.items()) + ']'
 
     def get_all_info(self) -> str:
         result = f"id='{MessageUtils.str_message_id(self.proto_message)}'"
