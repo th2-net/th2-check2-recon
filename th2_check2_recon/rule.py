@@ -129,14 +129,13 @@ class Rule:
             return
 
         self.__hash_and_store_event(message, attributes, *args, **kwargs)
-        try:
-            main_group = self.__cache.message_groups[message.group_id]
-        except KeyError:
+        if message.group_id not in self.__cache.message_groups:
             raise Exception(F"'group' method set incorrect groups.\n"
                             F" - message: {message.get_all_info()}\n"
                             F" - available groups: {self.description_of_groups_bridge()}\n"
                             F" - message.group_id: {message.group_id}")
         else:
+            main_group = self.__cache.message_groups[message.group_id]
             logger.debug("RULE '%s': Received %s", self.name, message.get_all_info())
 
         group_indices = []
