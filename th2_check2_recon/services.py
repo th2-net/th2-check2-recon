@@ -256,27 +256,29 @@ class Cache(AbstractService):
         self.rule_event = self.rule.rule_event
         message_group_types = self.rule.description_of_groups_bridge()
 
-        self.nonshared_message_groups: List[Cache.MessageGroup] = [
-            Cache.MessageGroup(id=message_group_id,
-                               capacity=cache_size,
-                               type=message_group_type,
-                               event_store=self.event_store,
-                               parent_event=self.rule_event)
-            for message_group_id, message_group_type in message_group_types.items() if MessageGroupType.shared not in message_group_type]
-        self.rule.recon.shared_message_groups += [
-            Cache.MessageGroup(id=message_group_id,
-                               capacity=cache_size,
-                               type=message_group_type,
-                               event_store=self.event_store,
-                               parent_event=self.rule_event)
-            for message_group_id, message_group_type in message_group_types.items() if MessageGroupType.shared in message_group_type]
+        self.nonshared_message_groups: Dict[str, Cache.MessageGroup] = {
+            message_group_id: Cache.MessageGroup(id=message_group_id,
+                                                 capacity=cache_size,
+                                                 type=message_group_type,
+                                                 event_store=self.event_store,
+                                                 parent_event=self.rule_event)
+            for message_group_id, message_group_type in message_group_types.items() if
+            MessageGroupType.shared not in message_group_type}
+        self.rule.recon.shared_message_groups.update({
+            message_group_id: Cache.MessageGroup(id=message_group_id,
+                                                 capacity=cache_size,
+                                                 type=message_group_type,
+                                                 event_store=self.event_store,
+                                                 parent_event=self.rule_event)
+            for message_group_id, message_group_type in message_group_types.items() if
+            MessageGroupType.shared in message_group_type})
 
         multi_cnt = 0
-        for group in self.message_groups:
+        for group in self.message_groups.values():
             if MessageGroupType.multi in group.type:
                 multi_cnt += 1
 
-        for group in self.message_groups:
+        for group in self.message_groups.values():
             if multi_cnt == 1:
                 if MessageGroupType.single in group.type:
                     group.is_cleanable = False
@@ -285,16 +287,10 @@ class Cache(AbstractService):
 
     @property
     def message_groups(self):
-        return self.nonshared_message_groups + self.rule.recon.shared_message_groups
-
-    def index_of_group(self, group_id: str) -> int:
-        for idx, group in enumerate(self.message_groups):
-            if group.id == group_id:
-                return idx
-        return -1
+        return {**self.nonshared_message_groups, **self.rule.recon.shared_message_groups}
 
     def stop(self):
-        for group in self.message_groups:
+        for group in self.message_groups.values():
             group.clear()
 
     class MessageGroup:

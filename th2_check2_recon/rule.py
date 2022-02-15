@@ -60,7 +60,7 @@ class Rule:
         self.compared_groups: Dict[str, tuple] = {}  # {ReconMessage.group_id: (Cache.MessageGroup, ..)}
         for group_id in self.description_of_groups_bridge():
             self.compared_groups[group_id] = tuple(
-                mg for mg in self.__cache.message_groups if mg.id != group_id)
+                mg for mg_id, mg in self.__cache.message_groups.items() if mg_id != group_id and mg_id in self.description_of_groups_bridge())
 
         self.RULE_PROCESSING_TIME = Histogram(f"th2_recon_{re.sub('[^a-zA-Z0-9_: ]', '', self.name).lower().replace(' ', '_')}_rule_processing_time",
                                               'Time of the message processing with a rule',
@@ -129,9 +129,9 @@ class Rule:
             return
 
         self.__hash_and_store_event(message, attributes, *args, **kwargs)
-
-        index_of_main_group = self.__cache.index_of_group(message.group_id)
-        if index_of_main_group == -1:
+        try:
+            main_group = self.__cache.message_groups[message.group_id]
+        except KeyError:
             raise Exception(F"'group' method set incorrect groups.\n"
                             F" - message: {message.get_all_info()}\n"
                             F" - available groups: {self.description_of_groups_bridge()}\n"
@@ -145,7 +145,7 @@ class Rule:
         # Check if each group has messages with compared hash else put the message to cache
         for compared_group in self.compared_groups[message.group_id]:
             if message.hash not in compared_group:
-                self.__cache.message_groups[index_of_main_group].put(message)
+                main_group.put(message)
                 return
             group_indices.append(0)
             group_sizes.append(len(compared_group.get(message.hash)))
@@ -153,10 +153,8 @@ class Rule:
         group_indices[-1] = -1
         while self.__increment_indices(group_sizes, group_indices):
             matched_messages = [message]
-            for i in range(len(group_indices)):
-                index_of_compared_group = i if i < index_of_main_group else i + 1
-                matched_messages.append(
-                    self.__cache.message_groups[index_of_compared_group].data[message.hash][group_indices[i]])
+            for i, group in zip(range(len(group_indices)), self.compared_groups[message.group_id]):
+                matched_messages.append(group.data[message.hash][group_indices[i]])
             self.__check_and_store_event(matched_messages, attributes, *args, **kwargs)
 
         for group in self.compared_groups[message.group_id]:
@@ -211,19 +209,19 @@ class Rule:
 
     def log_groups_size(self):
         res = ""
-        for group in self.__cache.message_groups:
+        for group in self.__cache.message_groups.values():
             res += f"'{group.id}': {group.size} msg, "
         res = "[" + res.strip(" ,") + "]"
         return res
 
     def cache_size(self):
         res = 0
-        for group in self.__cache.message_groups:
+        for group in self.__cache.message_groups.values():
             res += group.size
         return res
 
     def check_no_match_within_timeout(self, actual_time: int):
-        for group in self.__cache.message_groups:
+        for group in self.__cache.message_groups.values():
             group.check_no_match_within_timeout(actual_time, self.match_timeout)
 
     def stop(self):

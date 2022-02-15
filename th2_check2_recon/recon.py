@@ -45,7 +45,7 @@ class Recon:
                                       event_batch_send_interval=self.__config.event_batch_send_interval)
         self.message_comparator: Optional[MessageComparator] = message_comparator
         self.grpc_server: Optional[Server] = grpc_server
-        self.shared_message_groups = list()
+        self.shared_message_groups = dict()
 
     def start(self):
         try:
