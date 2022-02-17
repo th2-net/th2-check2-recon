@@ -17,7 +17,7 @@ import logging
 import re
 import traceback
 from abc import abstractmethod
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 
 from google.protobuf import text_format
 from prometheus_client import Histogram
@@ -27,7 +27,7 @@ from th2_grpc_common.common_pb2 import Event
 from th2_check2_recon.common import EventUtils, MessageComponent
 from th2_check2_recon.handler import MessageHandler, AbstractHandler
 from th2_check2_recon.recon import Recon
-from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp
+from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp, MessageGroupType
 from th2_check2_recon.services import Cache, MessageComparator
 
 
@@ -57,11 +57,6 @@ class Rule:
 
         self.__cache = Cache(self, cache_size)
 
-        self.compared_groups: Dict[str, tuple] = {}  # {ReconMessage.group_id: (Cache.MessageGroup, ..)}
-        for group_id in self.description_of_groups_bridge():
-            self.compared_groups[group_id] = tuple(
-                mg for mg_id, mg in self.__cache.message_groups.items() if mg_id != group_id and mg_id in self.description_of_groups_bridge())
-
         self.RULE_PROCESSING_TIME = Histogram(f"th2_recon_{re.sub('[^a-zA-Z0-9_: ]', '', self.name).lower().replace(' ', '_')}_rule_processing_time",
                                               'Time of the message processing with a rule',
                                               buckets=common_metrics.DEFAULT_BUCKETS)
@@ -71,6 +66,16 @@ class Rule:
     @abstractmethod
     def get_name(self) -> str:
         pass
+
+    @property
+    def compared_groups(self) -> Dict[str, Tuple[Cache.MessageGroup]]:
+        compared_groups = dict()
+        for group_id in self.description_of_groups_bridge():
+            compared_groups[group_id] = tuple(
+                mg for mg_id, mg in self.__cache.message_groups.items()
+                if mg_id != group_id and mg_id in self.description_of_groups_bridge()
+            )
+        return compared_groups
 
     @abstractmethod
     def get_description(self) -> str:
@@ -116,6 +121,8 @@ class Rule:
         return MessageHandler(self)
 
     def put_shared_message(self, shared_group_id: str, message: ReconMessage, attributes: tuple):
+        if shared_group_id in message.in_shared_groups:
+            return
         new_message = copy.deepcopy(message)
         new_message.group_id = shared_group_id
         self.recon.put_shared_message(shared_group_id, new_message, attributes)
@@ -144,6 +151,9 @@ class Rule:
         # Check if each group has messages with compared hash else put the message to cache
         for compared_group in self.compared_groups[message.group_id]:
             if message.hash not in compared_group:
+                if MessageGroupType.shared in self.description_of_groups_bridge()[message.group_id] and\
+                        message.group_id not in message.in_shared_groups:
+                    message.in_shared_groups.add(message.group_id)
                 main_group.put(message)
                 return
             group_indices.append(0)

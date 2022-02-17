@@ -104,4 +104,3 @@ class Recon:
             groups = rule.description_of_groups_bridge()
             if shared_group_id in groups.keys() and MessageGroupType.shared in groups[shared_group_id]:
                 rule.process(new_message, attributes)
-                break
