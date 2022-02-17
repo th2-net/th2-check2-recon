@@ -287,7 +287,8 @@ class Cache(AbstractService):
 
     @property
     def message_groups(self):
-        return {**self.nonshared_message_groups, **self.rule.recon.shared_message_groups}
+        return {key: value for key,value in {**self.nonshared_message_groups, **self.rule.recon.shared_message_groups}.items()
+                if key in self.rule.description_of_groups_bridge()}
 
     def stop(self):
         for group in self.message_groups.values():
