@@ -17,7 +17,7 @@ import logging
 import re
 import traceback
 from abc import abstractmethod
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional
 
 from google.protobuf import text_format
 from prometheus_client import Histogram
@@ -29,7 +29,6 @@ from th2_check2_recon.handler import MessageHandler, AbstractHandler
 from th2_check2_recon.recon import Recon
 from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp, MessageGroupType
 from th2_check2_recon.services import Cache, MessageComparator
-
 
 logger = logging.getLogger(__name__)
 
@@ -67,16 +66,6 @@ class Rule:
     def get_name(self) -> str:
         pass
 
-    @property
-    def compared_groups(self) -> Dict[str, Tuple[Cache.MessageGroup]]:
-        compared_groups = dict()
-        for group_id in self.description_of_groups_bridge():
-            compared_groups[group_id] = tuple(
-                mg for mg_id, mg in self.__cache.message_groups.items()
-                if mg_id != group_id and mg_id in self.description_of_groups_bridge()
-            )
-        return compared_groups
-
     @abstractmethod
     def get_description(self) -> str:
         pass
@@ -95,11 +84,11 @@ class Rule:
 
     def description_of_groups_bridge(self) -> dict:
         result = dict()
-        for (key, value) in self.description_of_groups().items():
-            if type(value) is not set:
-                result[key] = {value}
-            else:
+        for key, value in self.description_of_groups().items():
+            if isinstance(value, set):
                 result[key] = value
+            else:
+                result[key] = {value}
         return result
 
     @abstractmethod
@@ -141,34 +130,33 @@ class Rule:
                             F" - message: {message.get_all_info()}\n"
                             F" - available groups: {self.description_of_groups_bridge()}\n"
                             F" - message.group_id: {message.group_id}")
-        else:
-            main_group = self.__cache.message_groups[message.group_id]
-            logger.debug("RULE '%s': Received %s", self.name, message.get_all_info())
+        main_group = self.__cache.message_groups[message.group_id]
+        logger.debug("RULE '%s': Received %s", self.name, message.get_all_info())
 
-        group_indices = []
-        group_sizes = []
-
-        # Check if each group has messages with compared hash else put the message to cache
-        for compared_group in self.compared_groups[message.group_id]:
-            if message.hash not in compared_group:
+        for match in self.find_matched_messages(message):
+            if match is None:  # Will return None if some of the groups did not contain the message.
                 if MessageGroupType.shared in self.description_of_groups_bridge()[message.group_id] and\
                         message.group_id not in message.in_shared_groups:
                     message.in_shared_groups.add(message.group_id)
                 main_group.put(message)
                 return
-            group_indices.append(0)
-            group_sizes.append(len(compared_group.get(message.hash)))
+            else:
+                self.__check_and_store_event(match, attributes, *args, **kwargs)
 
-        group_indices[-1] = -1
-        while self.__increment_indices(group_sizes, group_indices):
-            matched_messages = [message]
-            for i, group in zip(range(len(group_indices)), self.compared_groups[message.group_id]):
-                matched_messages.append(group.data[message.hash][group_indices[i]])
-            self.__check_and_store_event(matched_messages, attributes, *args, **kwargs)
-
-        for group in self.compared_groups[message.group_id]:
-            if group.is_cleanable:
+        for group_id, group in self.__cache.message_groups.items():
+            if group_id != message.group_id and group.is_cleanable:
                 group.remove(message.hash)
+
+    def find_matched_messages(self, message):
+        matched_messages = list()
+        for group_id, group in self.__cache.message_groups.items():
+            if group_id == message.group_id:
+                continue
+            if message.hash not in group:
+                yield None
+            matched_messages.append(group.data[message.hash])
+        for match in zip(*matched_messages):
+            yield [message] + list(match)
 
     def __group_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         try:
@@ -217,17 +205,10 @@ class Rule:
                                            check_event=check_event)
 
     def log_groups_size(self):
-        res = ""
-        for group in self.__cache.message_groups.values():
-            res += f"'{group.id}': {group.size} msg, "
-        res = "[" + res.strip(" ,") + "]"
-        return res
+        return "[" + ', '.join(f"'{group.id}': {group.size} msg" for group in self.__cache.message_groups.values()) + "]"
 
     def cache_size(self):
-        res = 0
-        for group in self.__cache.message_groups.values():
-            res += group.size
-        return res
+        return sum(group.size for group in self.__cache.message_groups)
 
     def check_no_match_within_timeout(self, actual_time: int):
         for group in self.__cache.message_groups.values():
@@ -235,16 +216,3 @@ class Rule:
 
     def stop(self):
         self.__cache.stop()
-
-    @staticmethod
-    def __increment_indices(sizes: list, indices: list) -> bool:
-        indices[-1] += 1
-        for i in range(len(sizes) - 1, -1, -1):
-            if indices[i] == sizes[i]:
-                if i == 0:
-                    return False
-                indices[i] = 0
-                indices[i - 1] += 1
-            else:
-                break
-        return True
