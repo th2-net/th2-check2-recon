@@ -121,17 +121,17 @@ class Rule:
 
         self.__group_and_store_event(message, attributes, *args, **kwargs)
         if message.group_id is None:
-            logger.debug("RULE '%s': Ignored  %s", self.name, message.get_all_info())
+            logger.debug("RULE '%s': Ignored  %s", self.name, message.all_info)
             return
 
         self.__hash_and_store_event(message, attributes, *args, **kwargs)
         if message.group_id not in self.__cache.message_groups:
             raise Exception(F"'group' method set incorrect groups.\n"
-                            F" - message: {message.get_all_info()}\n"
+                            F" - message: {message.all_info}\n"
                             F" - available groups: {self.description_of_groups_bridge()}\n"
                             F" - message.group_id: {message.group_id}")
         main_group = self.__cache.message_groups[message.group_id]
-        logger.debug("RULE '%s': Received %s", self.name, message.get_all_info())
+        logger.debug("RULE '%s': Received %s", self.name, message.all_info)
 
         for match in self.find_matched_messages(message):
             if match is None:  # Will return None if some of the groups did not contain the message.

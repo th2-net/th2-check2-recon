@@ -139,20 +139,17 @@ class EventStore(AbstractService):
 
     def store_no_match_within_timeout(self, rule_event_id: EventID, recon_message: ReconMessage,
                                       actual_timestamp: int, timeout: int):
-        name = f'{recon_message.get_all_info()}'
+        name = f'{recon_message.all_info}'
 
         units = ['sec', 'ms', 'mcs', 'ns']
         factor_units = [1_000_000_000, 1_000_000, 1_000, 1]
-        units_idx = 0
-        while actual_timestamp % factor_units[units_idx] != 0 \
-                or recon_message.timestamp % factor_units[units_idx] != 0 \
-                or timeout % factor_units[units_idx] != 0:
-            units_idx += 1
+        for unit, factor_unit in zip(units, factor_units):
+            if not any((actual_timestamp % factor_unit, recon_message.timestamp % factor_unit, timeout % factor_unit)):
+                break
 
-        unit = units[units_idx]
-        actual_timestamp = int(actual_timestamp / factor_units[units_idx])
-        message_timestamp = int(recon_message.timestamp / factor_units[units_idx])
-        timeout = int(timeout / factor_units[units_idx])
+        actual_timestamp = int(actual_timestamp / factor_unit)
+        message_timestamp = int(recon_message.timestamp / factor_unit)
+        timeout = int(timeout / factor_unit)
 
         event_message = f"Timestamp of the last received message: '{actual_timestamp:,}' {unit}\n" \
                         f"Timestamp this message: '{message_timestamp:,}' {unit}\n" \
@@ -167,7 +164,7 @@ class EventStore(AbstractService):
         self.send_event(event, rule_event_id, self.NO_MATCH_WITHIN_TIMEOUT)
 
     def store_no_match(self, rule_event_id: EventID, message: ReconMessage, event_message: str):
-        name = f"Remove {message.get_all_info()}"
+        name = f"Remove {message.all_info}"
         event_message += f"\n Message {'not' if not message.is_matched else ''} matched"
         body = EventUtils.create_event_body(MessageComponent(event_message))
         attached_message_ids = self._get_attached_message_ids(message)
@@ -249,6 +246,8 @@ class MessageComparator(AbstractService):
 
 class Cache(AbstractService):
 
+    __slots__ = 'rule', 'capacity', 'event_store', 'rule_event', 'nonshared_message_groups', '_mg'
+
     def __init__(self, rule, cache_size) -> None:
         self.rule = rule
         self.capacity = cache_size
@@ -273,22 +272,27 @@ class Cache(AbstractService):
             for message_group_id, message_group_type in message_group_types.items() if
             MessageGroupType.shared in message_group_type})
 
-        has_multi = any(MessageGroupType.multi in group.type for group in self.message_groups.values())
-        for group in self.message_groups.values():
-            if has_multi:
-                if MessageGroupType.single in group.type:
-                    group.is_cleanable = False
+        self._mg = None
 
     @property
     def message_groups(self):
-        return {key: value for key, value in {**self.nonshared_message_groups, **self.rule.recon.shared_message_groups}.items()
+        if self._mg is None:
+            self._mg = {key: value for key, value in {**self.nonshared_message_groups, **self.rule.recon.shared_message_groups}.items()
                 if key in self.rule.description_of_groups_bridge()}
+            has_multi = any(MessageGroupType.multi in group.type for group in self.message_groups.values())
+            for group in self.message_groups.values():
+                if has_multi:
+                    if MessageGroupType.single in group.type:
+                        group.is_cleanable = False
+        return self._mg
 
     def stop(self):
         for group in self.message_groups.values():
             group.clear()
 
     class MessageGroup:
+
+        __slots__ = 'id', 'capacity', 'size', 'type', 'event_store', 'parent_event', 'is_cleanable', 'data', 'hash_by_sorted_timestamp'
 
         def __init__(self, id: str, capacity: int, type: {MessageGroupType}, event_store: EventStore,
                      parent_event: Event) -> None:
