@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import itertools
 import logging
 import re
 import traceback
@@ -131,9 +132,10 @@ class Rule:
                             F" - available groups: {self.description_of_groups_bridge()}\n"
                             F" - message.group_id: {message.group_id}")
         main_group = self.__cache.message_groups[message.group_id]
+        match_all = MessageGroupType.multi_match_all in main_group.type
         logger.debug("RULE '%s': Received %s", self.name, message.all_info)
 
-        for match in self.find_matched_messages(message):
+        for match in self.find_matched_messages(message, match_whole_list=match_all):
             if match is None:  # Will return None if some of the groups did not contain the message.
                 if MessageGroupType.shared in self.description_of_groups_bridge()[message.group_id] and\
                         message.group_id not in message.in_shared_groups:
@@ -143,11 +145,14 @@ class Rule:
             else:
                 self.__check_and_store_event(match, attributes, *args, **kwargs)
 
+        if match_all:
+            main_group.put(message)
+
         for group_id, group in self.__cache.message_groups.items():
             if group_id != message.group_id and group.is_cleanable:
                 group.remove(message.hash)
 
-    def find_matched_messages(self, message):
+    def find_matched_messages(self, message, match_whole_list=False):
         matched_messages = list()
         for group_id, group in self.__cache.message_groups.items():
             if group_id == message.group_id:
@@ -155,6 +160,10 @@ class Rule:
             if message.hash not in group:
                 yield None
             matched_messages.append(group.data[message.hash])
+        if match_whole_list:
+            for match in itertools.product(*matched_messages):
+                yield [message] + list(match)
+            return
         for match in zip(*matched_messages):
             yield [message] + list(match)
 
