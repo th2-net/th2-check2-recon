@@ -95,6 +95,7 @@ class Recon:
                 loaded_rules.append(module.Rule(recon=self,
                                                 cache_size=self.__config.cache_size,
                                                 match_timeout=match_timeout,
+                                                autoremove_timeout=rule_config.autoremove_timeout,
                                                 configuration=rule_config.configuration))
         logger.info('Rules loaded')
         return loaded_rules

@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 class Rule:
 
-    def __init__(self, recon: Recon, cache_size: int, match_timeout: int, configuration) -> None:
+    def __init__(self, recon: Recon, cache_size: int, match_timeout: int, autoremove_timeout: int, configuration) -> None:
         self.configure(configuration)
         self.name = self.get_name()
         logger.info("Rule '%s' initializing...", self.name)
@@ -45,6 +45,7 @@ class Rule:
         self.event_store = recon.event_store
         self.message_comparator: Optional[MessageComparator] = recon.message_comparator
         self.match_timeout = match_timeout
+        self.autoremove_timeout = autoremove_timeout
 
         self.rule_event: Event = \
             EventUtils.create_event(name=self.name,
@@ -221,7 +222,7 @@ class Rule:
 
     def check_no_match_within_timeout(self, actual_time: int):
         for group in self.__cache.message_groups.values():
-            group.check_no_match_within_timeout(actual_time, self.match_timeout)
+            group.check_no_match_within_timeout(actual_time, self.match_timeout, self.autoremove_timeout)
 
     def stop(self):
         self.__cache.stop()
