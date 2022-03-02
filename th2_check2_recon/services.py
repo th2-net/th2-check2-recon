@@ -339,6 +339,8 @@ class Cache(AbstractService):
                             recon_message.is_check_no_match_within_timeout = True
                             self.event_store.store_no_match_within_timeout(self.parent_event.id, recon_message,
                                                                            actual_timestamp, timeout)
+                else:
+                    break
 
         def remove(self, hash_of_message: int, cause="", remove_all=True):
             message_for_remove = None
