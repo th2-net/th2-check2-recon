@@ -47,6 +47,8 @@ class Rule:
         self.match_timeout = match_timeout
         self.autoremove_timeout = autoremove_timeout
 
+        self.reprocess_queue = list()
+
         self.rule_event: Event = \
             EventUtils.create_event(name=self.name,
                                     parent_id=recon.event_store.root_event.id,
@@ -153,6 +155,10 @@ class Rule:
             if group_id != message.group_id and group.is_cleanable:
                 group.remove(message.hash)
 
+        for message in self.reprocess_queue:
+            self.process(message, attributes)
+        self.reprocess_queue.clear()
+
     def find_matched_messages(self, message, match_whole_list=False):
         matched_messages = list()
         for group_id, group in self.__cache.message_groups.items():
@@ -167,6 +173,9 @@ class Rule:
             return
         for match in zip(*matched_messages):
             yield [message] + list(match)
+
+    def queue_for_retransmitting(self, message: ReconMessage):
+        self.reprocess_queue.append(message)
 
     def __group_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         try:
