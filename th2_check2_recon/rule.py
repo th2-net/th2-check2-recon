@@ -161,9 +161,11 @@ class Rule:
             if message.hash not in group:
                 yield None
             matched_messages.append(group.data[message.hash])
+
         if match_whole_list:
             yield [message] + functools.reduce(lambda inner_list1, inner_list2: inner_list1+inner_list2, matched_messages)
             return
+
         for match in zip(*matched_messages):
             yield [message] + list(match)
 
