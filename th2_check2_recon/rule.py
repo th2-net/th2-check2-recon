@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import functools
 import logging
 import re
 import traceback
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 class Rule:
 
-    def __init__(self, recon: Recon, cache_size: int, match_timeout: int, configuration) -> None:
+    def __init__(self, recon: Recon, cache_size: int, match_timeout: int, autoremove_timeout: Optional[int], configuration) -> None:
         self.configure(configuration)
         self.name = self.get_name()
         logger.info("Rule '%s' initializing...", self.name)
@@ -44,6 +45,7 @@ class Rule:
         self.event_store = recon.event_store
         self.message_comparator: Optional[MessageComparator] = recon.message_comparator
         self.match_timeout = match_timeout
+        self.autoremove_timeout = autoremove_timeout
 
         self.rule_event: Event = \
             EventUtils.create_event(name=self.name,
@@ -131,9 +133,10 @@ class Rule:
                             F" - available groups: {self.description_of_groups_bridge()}\n"
                             F" - message.group_id: {message.group_id}")
         main_group = self.__cache.message_groups[message.group_id]
+        match_all = MessageGroupType.multi_match_all in main_group.type
         logger.debug("RULE '%s': Received %s", self.name, message.all_info)
 
-        for match in self.find_matched_messages(message):
+        for match in self.find_matched_messages(message, match_whole_list=match_all):
             if match is None:  # Will return None if some of the groups did not contain the message.
                 if MessageGroupType.shared in self.description_of_groups_bridge()[message.group_id] and\
                         message.group_id not in message.in_shared_groups:
@@ -143,11 +146,14 @@ class Rule:
             else:
                 self.__check_and_store_event(match, attributes, *args, **kwargs)
 
+        if match_all:
+            main_group.put(message)
+
         for group_id, group in self.__cache.message_groups.items():
             if group_id != message.group_id and group.is_cleanable:
                 group.remove(message.hash)
 
-    def find_matched_messages(self, message):
+    def find_matched_messages(self, message, match_whole_list=False):
         matched_messages = list()
         for group_id, group in self.__cache.message_groups.items():
             if group_id == message.group_id:
@@ -155,6 +161,11 @@ class Rule:
             if message.hash not in group:
                 yield None
             matched_messages.append(group.data[message.hash])
+
+        if match_whole_list:
+            yield [message] + functools.reduce(lambda inner_list1, inner_list2: inner_list1+inner_list2, matched_messages)
+            return
+
         for match in zip(*matched_messages):
             yield [message] + list(match)
 
@@ -212,7 +223,7 @@ class Rule:
 
     def check_no_match_within_timeout(self, actual_time: int):
         for group in self.__cache.message_groups.values():
-            group.check_no_match_within_timeout(actual_time, self.match_timeout)
+            group.check_no_match_within_timeout(actual_time, self.match_timeout, self.autoremove_timeout)
 
     def stop(self):
         self.__cache.stop()

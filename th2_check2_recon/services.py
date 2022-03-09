@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections
+import itertools
 import logging
 from abc import ABC, abstractmethod
 from threading import Lock, Timer
@@ -321,7 +322,9 @@ class Cache(AbstractService):
                 self.remove(hash_for_remove, cause, remove_all=False)
                 self.put(message)
 
-        def check_no_match_within_timeout(self, actual_timestamp: int, timeout: int):
+        def check_no_match_within_timeout(self, actual_timestamp: int, timeout: int, clean_timeout: Optional[int]):
+            if clean_timeout is not None:
+                self.clear_out_of_timeout(actual_timestamp, clean_timeout)
             lower_bound_timestamp = actual_timestamp - timeout
             for timestamp, hashes in self.hash_by_sorted_timestamp.items():
                 if timestamp < lower_bound_timestamp:
@@ -368,6 +371,16 @@ class Cache(AbstractService):
                 hash_for_remove = next(iter(self.data.keys()))
                 while hash_for_remove in self.data and len(self.data[hash_for_remove]) != 0:
                     self.remove(hash_for_remove, cause, remove_all=False)
+
+        def clear_out_of_timeout(self, actual_timestamp, clean_timeout):
+            hashes_to_removal = list()
+            for timestamp, hashes in self.hash_by_sorted_timestamp.items():
+                if timestamp < actual_timestamp - clean_timeout:
+                    hashes_to_removal.append(hashes)
+                else:
+                    break
+            for hash_to_remove in itertools.chain.from_iterable(hashes_to_removal):
+                self.remove(hash_to_remove, remove_all=False)
 
         def __iter__(self):
             """Generator that yields all messages in the group"""
