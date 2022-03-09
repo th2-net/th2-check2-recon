@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import importlib
 import logging
 from typing import Optional
@@ -36,7 +35,6 @@ class Recon:
                  grpc_server: Optional[Server] = None) -> None:
         logger.info('Recon initializing...')
         self.rules = []
-        self.__loop = asyncio.get_event_loop()
         self.__config = ReconConfiguration(**custom_config)
         self.__message_router = message_router
         self.event_store = EventStore(event_router=event_router,
@@ -45,7 +43,7 @@ class Recon:
                                       event_batch_send_interval=self.__config.event_batch_send_interval)
         self.message_comparator: Optional[MessageComparator] = message_comparator
         self.grpc_server: Optional[Server] = grpc_server
-        self.shared_message_groups = list()
+        self.shared_message_groups = dict()
 
     def start(self):
         try:
@@ -61,7 +59,6 @@ class Recon:
                 self.grpc_server.start()
 
             logger.info('Recon started!')
-            self.__loop.run_forever()
         except Exception:
             logger.exception('Recon work interrupted')
             raise
@@ -78,10 +75,6 @@ class Recon:
         except Exception:
             logger.exception('Error while stop Recon')
         finally:
-            try:
-                self.__loop.close()
-            except Exception:
-                pass
             logger.info('Recon stopped!')
 
     def __load_rules(self):
@@ -104,4 +97,3 @@ class Recon:
             groups = rule.description_of_groups_bridge()
             if shared_group_id in groups.keys() and MessageGroupType.shared in groups[shared_group_id]:
                 rule.process(new_message, attributes)
-                break
