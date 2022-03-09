@@ -246,7 +246,7 @@ class MessageComparator(AbstractService):
 
 class Cache(AbstractService):
 
-    __slots__ = 'rule', 'capacity', 'event_store', 'rule_event', 'nonshared_message_groups', '_mg'
+    __slots__ = 'rule', 'capacity', 'event_store', 'rule_event', '_message_groups'
 
     def __init__(self, rule, cache_size) -> None:
         self.rule = rule
@@ -255,16 +255,15 @@ class Cache(AbstractService):
         self.rule_event = self.rule.rule_event
         message_group_types = self.rule.description_of_groups_bridge()
 
-        self._mg = dict()
+        self._message_groups = dict()
 
         for message_group_id, message_group_type in message_group_types.items():
             if MessageGroupType.shared not in message_group_type:
-                self.nonshared_message_groups[message_group_id] = Cache.MessageGroup(id=message_group_id,
-                                                                                     capacity=cache_size,
-                                                                                     type=message_group_type,
-                                                                                     event_store=self.event_store,
-                                                                                     parent_event=self.rule_event)
-                self._mg[message_group_id] = self.nonshared_message_groups[message_group_id]
+                self._message_groups[message_group_id] = Cache.MessageGroup(id=message_group_id,
+                                                                            capacity=cache_size,
+                                                                            type=message_group_type,
+                                                                            event_store=self.event_store,
+                                                                            parent_event=self.rule_event)
             else:
                 if message_group_id not in self.rule.recon.shared_message_groups:
                     self.rule.recon.shared_message_groups[message_group_id] = Cache.MessageGroup(id=message_group_id,
@@ -272,7 +271,7 @@ class Cache(AbstractService):
                                                                                              type=message_group_type,
                                                                                              event_store=self.event_store,
                                                                                              parent_event=self.rule_event)
-                self._mg[message_group_id] = self.rule.recon.shared_message_groups[message_group_id]
+                self._message_groups[message_group_id] = self.rule.recon.shared_message_groups[message_group_id]
         has_multi = any(MessageGroupType.multi in group.type for group in self.message_groups.values())
         for group in self.message_groups.values():
             if has_multi:
@@ -281,7 +280,7 @@ class Cache(AbstractService):
 
     @property
     def message_groups(self):
-        return self._mg
+        return self._message_groups
 
     def stop(self):
         for group in self.message_groups.values():
