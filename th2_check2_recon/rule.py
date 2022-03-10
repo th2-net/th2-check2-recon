@@ -14,6 +14,7 @@
 
 import copy
 import itertools
+import functools
 import logging
 import re
 import traceback
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 class Rule:
 
-    def __init__(self, recon: Recon, cache_size: int, match_timeout: int, autoremove_timeout: int, configuration) -> None:
+    def __init__(self, recon: Recon, cache_size: int, match_timeout: int, autoremove_timeout: Optional[int], configuration) -> None:
         self.configure(configuration)
         self.name = self.get_name()
         logger.info("Rule '%s' initializing...", self.name)
@@ -167,10 +168,11 @@ class Rule:
             if message.hash not in group:
                 yield None
             matched_messages.append(group.data[message.hash])
+            
         if match_whole_list:
-            for match in itertools.product(*matched_messages):
-                yield [message] + list(match)
+            yield [message] + functools.reduce(lambda inner_list1, inner_list2: inner_list1+inner_list2, matched_messages)
             return
+
         for match in zip(*matched_messages):
             yield [message] + list(match)
 

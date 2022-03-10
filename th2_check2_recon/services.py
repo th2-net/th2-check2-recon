@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections
+import itertools
 import logging
 from abc import ABC, abstractmethod
 from threading import Lock, Timer
@@ -163,7 +164,7 @@ class EventStore(AbstractService):
         logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH_WITHIN_TIMEOUT, rule_event_id)
         self.send_event(event, rule_event_id, self.NO_MATCH_WITHIN_TIMEOUT)
 
-    def store_no_match(self, rule_event_id: EventID, message: ReconMessage, event_message: str):
+    def store_message_removed(self, rule_event_id: EventID, message: ReconMessage, event_message: str):
         name = f"Remove {message.all_info}"
         event_message += f"\n Message {'not' if not message.is_matched else ''} matched"
         body = EventUtils.create_event_body(MessageComponent(event_message))
@@ -246,7 +247,7 @@ class MessageComparator(AbstractService):
 
 class Cache(AbstractService):
 
-    __slots__ = 'rule', 'capacity', 'event_store', 'rule_event', 'nonshared_message_groups', '_mg'
+    __slots__ = 'rule', 'capacity', 'event_store', 'rule_event', '_message_groups'
 
     def __init__(self, rule, cache_size) -> None:
         self.rule = rule
@@ -255,36 +256,32 @@ class Cache(AbstractService):
         self.rule_event = self.rule.rule_event
         message_group_types = self.rule.description_of_groups_bridge()
 
-        self.nonshared_message_groups: Dict[str, Cache.MessageGroup] = {
-            message_group_id: Cache.MessageGroup(id=message_group_id,
-                                                 capacity=cache_size,
-                                                 type=message_group_type,
-                                                 event_store=self.event_store,
-                                                 parent_event=self.rule_event)
-            for message_group_id, message_group_type in message_group_types.items() if
-            MessageGroupType.shared not in message_group_type}
-        self.rule.recon.shared_message_groups.update({
-            message_group_id: Cache.MessageGroup(id=message_group_id,
-                                                 capacity=cache_size,
-                                                 type=message_group_type,
-                                                 event_store=self.event_store,
-                                                 parent_event=self.rule_event)
-            for message_group_id, message_group_type in message_group_types.items() if
-            MessageGroupType.shared in message_group_type})
+        self._message_groups = dict()
 
-        self._mg = None
+        for message_group_id, message_group_type in message_group_types.items():
+            if MessageGroupType.shared not in message_group_type:
+                self._message_groups[message_group_id] = Cache.MessageGroup(id=message_group_id,
+                                                                            capacity=cache_size,
+                                                                            type=message_group_type,
+                                                                            event_store=self.event_store,
+                                                                            parent_event=self.rule_event)
+            else:
+                if message_group_id not in self.rule.recon.shared_message_groups:
+                    self.rule.recon.shared_message_groups[message_group_id] = Cache.MessageGroup(id=message_group_id,
+                                                                                             capacity=cache_size,
+                                                                                             type=message_group_type,
+                                                                                             event_store=self.event_store,
+                                                                                             parent_event=self.rule_event)
+                self._message_groups[message_group_id] = self.rule.recon.shared_message_groups[message_group_id]
+        has_multi = any(MessageGroupType.multi in group.type for group in self.message_groups.values())
+        for group in self.message_groups.values():
+            if has_multi:
+                if MessageGroupType.single in group.type:
+                    group.is_cleanable = False
 
     @property
     def message_groups(self):
-        if self._mg is None:
-            self._mg = {key: value for key, value in {**self.nonshared_message_groups, **self.rule.recon.shared_message_groups}.items()
-                if key in self.rule.description_of_groups_bridge()}
-            has_multi = any(MessageGroupType.multi in group.type for group in self.message_groups.values())
-            for group in self.message_groups.values():
-                if has_multi:
-                    if MessageGroupType.single in group.type:
-                        group.is_cleanable = False
-        return self._mg
+        return self._message_groups
 
     def stop(self):
         for group in self.message_groups.values():
@@ -326,12 +323,10 @@ class Cache(AbstractService):
                 self.put(message)
 
         def check_no_match_within_timeout(self, actual_timestamp: int, timeout: int, clean_timeout: Optional[int]):
+            if clean_timeout is not None:
+                self.clear_out_of_timeout(actual_timestamp, clean_timeout)
             lower_bound_timestamp = actual_timestamp - timeout
             for timestamp, hashes in self.hash_by_sorted_timestamp.items():
-                if clean_timeout is not None and timestamp < actual_timestamp - clean_timeout:
-                    for hash_for_removal in hashes:
-                        self.remove(hash_for_removal, remove_all=False)
-                    continue
                 if timestamp < lower_bound_timestamp:
                     old_hash = hashes[0]
                     for recon_message in self.data[old_hash]:
@@ -342,7 +337,7 @@ class Cache(AbstractService):
                 else:
                     break
 
-        def remove(self, hash_of_message: int, cause="", remove_all=True):
+        def remove(self, hash_of_message: int, cause=None, remove_all=True):
             message_for_remove = None
             if remove_all:
                 for message_for_remove in self.data[hash_of_message]:
@@ -365,10 +360,10 @@ class Cache(AbstractService):
                     del self.hash_by_sorted_timestamp[timestamp_for_remove]
                 self.size -= 1
 
-            if len(cause) != 0:
-                self.event_store.store_no_match(rule_event_id=self.parent_event.id,
-                                                message=message_for_remove,
-                                                event_message=cause)
+            if cause is not None:
+                self.event_store.store_message_removed(rule_event_id=self.parent_event.id,
+                                                       message=message_for_remove,
+                                                       event_message=cause)
 
         def clear(self):
             cause = "The message was deleted because the Recon stopped"
@@ -376,6 +371,16 @@ class Cache(AbstractService):
                 hash_for_remove = next(iter(self.data.keys()))
                 while hash_for_remove in self.data and len(self.data[hash_for_remove]) != 0:
                     self.remove(hash_for_remove, cause, remove_all=False)
+
+        def clear_out_of_timeout(self, actual_timestamp, clean_timeout):
+            hashes_to_removal = list()
+            for timestamp, hashes in self.hash_by_sorted_timestamp.items():
+                if timestamp < actual_timestamp - clean_timeout:
+                    hashes_to_removal.append(hashes)
+                else:
+                    break
+            for hash_to_remove in itertools.chain.from_iterable(hashes_to_removal):
+                self.remove(hash_to_remove, remove_all=False)
 
         def __iter__(self):
             """Generator that yields all messages in the group"""
