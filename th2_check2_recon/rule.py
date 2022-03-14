@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import copy
-import itertools
 import functools
 import logging
 import re
@@ -38,11 +37,11 @@ logger = logging.getLogger(__name__)
 class Rule:
 
     def __init__(self, recon: Recon, cache_size: int, match_timeout: int, autoremove_timeout: Optional[int], configuration) -> None:
+        self.recon = recon
         self.configure(configuration)
         self.name = self.get_name()
         logger.info("Rule '%s' initializing...", self.name)
 
-        self.recon = recon
         self.event_store = recon.event_store
         self.message_comparator: Optional[MessageComparator] = recon.message_comparator
         self.match_timeout = match_timeout
@@ -86,6 +85,10 @@ class Rule:
             Type can be MessageGroupType.single or MessageGroupType.multi, or MessageGroupType.shared.
         """
         pass
+
+    @property
+    def common_configuration(self):
+        return self.recon._config.configuration
 
     def description_of_groups_bridge(self) -> dict:
         result = dict()
