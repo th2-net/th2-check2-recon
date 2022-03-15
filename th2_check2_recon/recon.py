@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import importlib
 import logging
 from typing import Optional
@@ -27,7 +26,6 @@ from th2_check2_recon.handler import GRPCHandler
 from th2_check2_recon.reconcommon import MessageGroupType, ReconMessage
 from th2_check2_recon.services import EventStore, MessageComparator
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -37,15 +35,15 @@ class Recon:
                  grpc_server: Optional[Server] = None) -> None:
         logger.info('Recon initializing...')
         self.rules = []
-        self.__loop = asyncio.get_event_loop()
-        self.__config = ReconConfiguration(**custom_config)
+        self._config = ReconConfiguration(**custom_config)
         self.__message_router = message_router
         self.event_store = EventStore(event_router=event_router,
-                                      report_name=self.__config.recon_name,
-                                      event_batch_max_size=self.__config.event_batch_max_size,
-                                      event_batch_send_interval=self.__config.event_batch_send_interval)
+                                      report_name=self._config.recon_name,
+                                      event_batch_max_size=self._config.event_batch_max_size,
+                                      event_batch_send_interval=self._config.event_batch_send_interval)
         self.message_comparator: Optional[MessageComparator] = message_comparator
         self.grpc_server: Optional[Server] = grpc_server
+        self.shared_message_groups = dict()
 
     def start(self):
         try:
@@ -61,7 +59,6 @@ class Recon:
                 self.grpc_server.start()
 
             logger.info('Recon started!')
-            self.__loop.run_forever()
         except Exception:
             logger.exception('Recon work interrupted')
             raise
@@ -78,23 +75,20 @@ class Recon:
         except Exception:
             logger.exception('Error while stop Recon')
         finally:
-            try:
-                self.__loop.close()
-            except Exception:
-                pass
             logger.info('Recon stopped!')
 
     def __load_rules(self):
         logger.info('Try load rules')
-        rules_package = importlib.import_module(self.__config.rules_package_path)
+        rules_package = importlib.import_module(self._config.rules_package_path)
         loaded_rules = []
-        for rule_config in self.__config.rules:
+        for rule_config in self._config.rules:
             if rule_config.enabled:
                 module = importlib.import_module(rules_package.__name__ + '.' + rule_config.name)
                 match_timeout = rule_config.match_timeout * 1_000_000_000 + rule_config.match_timeout_offset_ns
                 loaded_rules.append(module.Rule(recon=self,
-                                                cache_size=self.__config.cache_size,
+                                                cache_size=self._config.cache_size,
                                                 match_timeout=match_timeout,
+                                                autoremove_timeout=rule_config.autoremove_timeout,
                                                 configuration=rule_config.configuration))
         logger.info('Rules loaded')
         return loaded_rules

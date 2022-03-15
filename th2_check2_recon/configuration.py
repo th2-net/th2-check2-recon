@@ -15,20 +15,23 @@
 
 class RuleConfiguration:
 
-    def __init__(self, name, enabled, match_timeout, match_timeout_offset_ns, configuration) -> None:
+    def __init__(self, name, enabled, match_timeout, match_timeout_offset_ns, autoremove_timeout=None, configuration=None) -> None:
         self.name = str(name)
         self.enabled = True if enabled.lower() == 'true' else False
-        self.configuration = configuration
         self.match_timeout = int(match_timeout)
         self.match_timeout_offset_ns = int(match_timeout_offset_ns)
+        self.autoremove_timeout = int(autoremove_timeout) if autoremove_timeout is not None else None
+        self.configuration = configuration
 
 
 class ReconConfiguration:
     def __init__(self, recon_name: str, cache_size: int, event_batch_max_size: int,
-                 event_batch_send_interval: int, rules_package_path: str, rules: list) -> None:
+                 event_batch_send_interval: int, rules_package_path: str, rules: list,
+                 configuration=None) -> None:
         self.recon_name = recon_name
         self.cache_size = int(cache_size)
         self.event_batch_max_size = int(event_batch_max_size)
         self.event_batch_send_interval = int(event_batch_send_interval)
         self.rules_package_path = rules_package_path
         self.rules = [RuleConfiguration(**rule) for rule in rules]
+        self.configuration = configuration

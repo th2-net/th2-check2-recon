@@ -19,7 +19,7 @@ from th2_check2_recon.common import MessageUtils
 
 class ReconMessage:
     __slots__ = ("proto_message", "group_info", "group_id", "hash_info", "hash", "is_matched",
-                 "is_check_no_match_within_timeout", "_timestamp")
+                 "is_check_no_match_within_timeout", "_timestamp", "in_shared_groups", '_info')
 
     def __init__(self, proto_message) -> None:
         self.proto_message = proto_message
@@ -29,28 +29,28 @@ class ReconMessage:
         self.hash = None
         self.is_matched = False
         self.is_check_no_match_within_timeout = False
+        self.in_shared_groups = set()
+        self._timestamp = None
+        self._info = None
 
     @property
     def timestamp(self):
-        try:
-            return self._timestamp
-        except AttributeError:
+        if self._timestamp is None:
             self._timestamp = MessageUtils.get_timestamp_ns(self.proto_message)
-            return self._timestamp
+        return self._timestamp
 
     @staticmethod
     def get_info(info_dict: dict) -> str:
-        message = ""
-        for key in info_dict.keys():
-            message += f"'{key}': {info_dict[key]}, "
-        return '[' + message.strip(' ,') + ']'
+        return '[' + ', '.join(f"'{key}': {value}" for key, value in info_dict.items()) + ']'
 
-    def get_all_info(self) -> str:
-        result = f"id='{MessageUtils.str_message_id(self.proto_message)}'"
-        try:
-            result = f"'{self.proto_message.metadata.message_type}' " + result
-        except AttributeError:
-            result = 'None type ' + result
+    @property
+    def all_info(self) -> str:
+        if self._info is None:
+            result = f"'{self.proto_message.metadata.message_type if self.proto_message.metadata.message_type else 'None type '}" \
+                     f"' id='{MessageUtils.str_message_id(self.proto_message)}'"
+            self._info = result
+        else:
+            result = self._info
         if self.hash is not None:
             result += f" Hash='{self.hash}'"
         if self.group_id is not None:
@@ -71,3 +71,4 @@ class MessageGroupType(Enum):
     single = 1
     multi = 2
     shared = 3
+    multi_match_all = 4
