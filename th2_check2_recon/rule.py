@@ -88,6 +88,9 @@ class Rule:
 
     @property
     def common_configuration(self):
+        """
+        Returns recon-level rule configuration if it was set, else - None.
+        """
         return self.recon._config.configuration
 
     def description_of_groups_bridge(self) -> dict:

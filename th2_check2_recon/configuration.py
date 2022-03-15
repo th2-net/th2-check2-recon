@@ -27,7 +27,7 @@ class RuleConfiguration:
 class ReconConfiguration:
     def __init__(self, recon_name: str, cache_size: int, event_batch_max_size: int,
                  event_batch_send_interval: int, rules_package_path: str, rules: list,
-                 configuration: str = None) -> None:
+                 configuration=None) -> None:
         self.recon_name = recon_name
         self.cache_size = int(cache_size)
         self.event_batch_max_size = int(event_batch_max_size)
