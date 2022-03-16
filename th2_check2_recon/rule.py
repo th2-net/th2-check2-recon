@@ -132,12 +132,12 @@ class Rule:
 
         self.__group_and_store_event(message, attributes, *args, **kwargs)
         if message.group_id is None:
-            logger.debug("RULE '%s': Ignored %s due to unset group_id", self.name, message.all_info)
+            logger.warning("RULE '%s': Ignored %s due to unset group_id", self.name, message.all_info)
             return
 
         self.__hash_and_store_event(message, attributes, *args, **kwargs)
         if message.hash is None:
-            logger.debug("RULE '%s': Ignored %s due to unset hash", self.name, message.all_info)
+            logger.warning("RULE '%s': Ignored %s due to unset hash", self.name, message.all_info)
             return
         if message.group_id not in self.__cache.message_groups:
             raise Exception(F"'group' method set incorrect groups.\n"
