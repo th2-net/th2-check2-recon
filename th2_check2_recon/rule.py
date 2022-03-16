@@ -185,6 +185,12 @@ class Rule:
     def queue_for_retransmitting(self, message: ReconMessage):
         self.reprocess_queue.append(message)
 
+    def clear_cache(self):
+        for group in self.__cache.message_groups.values():
+            group.data.clear()
+            group.hash_by_sorted_timestamp.clear()
+            group.size = 0
+
     def __group_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         try:
             self.group(message, attributes, *args, **kwargs)
