@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 
 
 class RuleConfiguration:
@@ -20,7 +21,13 @@ class RuleConfiguration:
         self.enabled = True if enabled.lower() == 'true' else False
         self.match_timeout = int(match_timeout)
         self.match_timeout_offset_ns = int(match_timeout_offset_ns)
-        self.autoremove_timeout = int(autoremove_timeout) if autoremove_timeout is not None else None
+        if autoremove_timeout is not None:
+            if ':' not in autoremove_timeout:
+                self.autoremove_timeout = int(autoremove_timeout)
+            else:
+                self.autoremove_timeout = datetime.datetime.strptime(autoremove_timeout, '%H:%M')
+        else:
+            self.autoremove_timeout = None
         self.configuration = configuration
 
 

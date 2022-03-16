@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import datetime
 import functools
 import logging
 import re
@@ -244,8 +245,15 @@ class Rule:
         return sum(group.size for group in self.__cache.message_groups)
 
     def check_no_match_within_timeout(self, actual_time: int):
+        if isinstance(self.autoremove_timeout, datetime.datetime):
+            autoremove_timestamp = datetime.datetime.combine(datetime.datetime.now().date(),
+                                                             self.autoremove_timeout.time()).timestamp()
+        elif isinstance(self.autoremove_timeout, int):
+            autoremove_timestamp = actual_time - self.autoremove_timeout
+        else:
+            autoremove_timestamp = None
         for group in self.__cache.message_groups.values():
-            group.check_no_match_within_timeout(actual_time, self.match_timeout, self.autoremove_timeout)
+            group.check_no_match_within_timeout(actual_time, self.match_timeout, autoremove_timestamp)
 
     def stop(self):
         self.__cache.stop()
