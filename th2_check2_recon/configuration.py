@@ -22,9 +22,9 @@ class RuleConfiguration:
         self.match_timeout = int(match_timeout)
         self.match_timeout_offset_ns = int(match_timeout_offset_ns)
         if autoremove_timeout is not None:
-            if ':' not in autoremove_timeout:
+            try:
                 self.autoremove_timeout = int(autoremove_timeout)
-            else:
+            except ValueError:
                 self.autoremove_timeout = datetime.datetime.strptime(autoremove_timeout, '%H:%M')
         else:
             self.autoremove_timeout = None
