@@ -246,8 +246,9 @@ class Rule:
 
     def check_no_match_within_timeout(self, actual_time: int):
         if isinstance(self.autoremove_timeout, datetime.datetime):
-            autoremove_timestamp = datetime.datetime.combine(datetime.datetime.now().date(),
-                                                             self.autoremove_timeout.time()).timestamp()
+            autoremove_timestamp = self.autoremove_timeout.timestamp()
+            if autoremove_timestamp < actual_time:
+                self.autoremove_timeout += datetime.timedelta(days=1)
         elif isinstance(self.autoremove_timeout, int):
             autoremove_timestamp = actual_time - self.autoremove_timeout
         else:

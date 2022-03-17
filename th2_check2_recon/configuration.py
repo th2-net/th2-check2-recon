@@ -26,6 +26,7 @@ class RuleConfiguration:
                 self.autoremove_timeout = int(autoremove_timeout)
             except ValueError:
                 self.autoremove_timeout = datetime.datetime.strptime(autoremove_timeout, '%H:%M')
+                self.autoremove_timeout = self.autoremove_timeout.combine(datetime.datetime.now().date(), self.autoremove_timeout.time())
         else:
             self.autoremove_timeout = None
         self.configuration = configuration
