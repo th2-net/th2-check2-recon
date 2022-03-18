@@ -375,7 +375,7 @@ class Cache(AbstractService):
         def clear_out_of_timeout(self, clean_timestamp):
             hashes_to_removal = list()
             for timestamp, hashes in self.hash_by_sorted_timestamp.items():
-                if timestamp < clean_timestamp:
+                if timestamp / 1e9 < clean_timestamp:
                     hashes_to_removal.append(hashes)
                 else:
                     break
