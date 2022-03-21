@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import datetime
 import functools
 import logging
 import re
@@ -188,6 +189,10 @@ class Rule:
     def queue_for_retransmitting(self, message: ReconMessage):
         self.reprocess_queue.append(message)
 
+    def clear_cache(self):
+        for group in self.__cache.message_groups.values():
+            group.wipe()
+
     def __group_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         try:
             self.group(message, attributes, *args, **kwargs)
@@ -241,8 +246,16 @@ class Rule:
         return sum(group.size for group in self.__cache.message_groups)
 
     def check_no_match_within_timeout(self, actual_time: int):
+        if self.autoremove_timeout is None:
+            autoremove_timestamp = None
+        elif isinstance(self.autoremove_timeout, datetime.datetime):
+            autoremove_timestamp = self.autoremove_timeout.timestamp() * 1e9
+            if autoremove_timestamp < actual_time:
+                self.autoremove_timeout += datetime.timedelta(days=1)
+        elif isinstance(self.autoremove_timeout, int):
+            autoremove_timestamp = actual_time - self.autoremove_timeout * 1e9
         for group in self.__cache.message_groups.values():
-            group.check_no_match_within_timeout(actual_time, self.match_timeout, self.autoremove_timeout)
+            group.check_no_match_within_timeout(actual_time, self.match_timeout, autoremove_timestamp)
 
     def stop(self):
         self.__cache.stop()
