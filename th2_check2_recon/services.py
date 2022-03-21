@@ -372,6 +372,11 @@ class Cache(AbstractService):
                 while hash_for_remove in self.data and len(self.data[hash_for_remove]) != 0:
                     self.remove(hash_for_remove, cause, remove_all=False)
 
+        def wipe(self):
+            self.data.clear()
+            self.hash_by_sorted_timestamp.clear()
+            self.size = 0
+
         def clear_out_of_timeout(self, clean_timestamp):
             hashes_to_removal = list()
             for timestamp, hashes in self.hash_by_sorted_timestamp.items():

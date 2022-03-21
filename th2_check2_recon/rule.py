@@ -188,9 +188,7 @@ class Rule:
 
     def clear_cache(self):
         for group in self.__cache.message_groups.values():
-            group.data.clear()
-            group.hash_by_sorted_timestamp.clear()
-            group.size = 0
+            group.wipe()
 
     def __group_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         try:
@@ -245,14 +243,14 @@ class Rule:
         return sum(group.size for group in self.__cache.message_groups)
 
     def check_no_match_within_timeout(self, actual_time: int):
-        if isinstance(self.autoremove_timeout, datetime.datetime):
+        if self.autoremove_timeout is None:
+            autoremove_timestamp = None
+        elif isinstance(self.autoremove_timeout, datetime.datetime):
             autoremove_timestamp = self.autoremove_timeout.timestamp() * 1e9
             if autoremove_timestamp < actual_time:
                 self.autoremove_timeout += datetime.timedelta(days=1)
         elif isinstance(self.autoremove_timeout, int):
             autoremove_timestamp = actual_time - self.autoremove_timeout * 1e9
-        else:
-            autoremove_timestamp = None
         for group in self.__cache.message_groups.values():
             group.check_no_match_within_timeout(actual_time, self.match_timeout, autoremove_timestamp)
 
