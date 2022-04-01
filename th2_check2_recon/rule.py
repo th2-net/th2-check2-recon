@@ -252,6 +252,8 @@ class Rule:
             autoremove_timestamp = self.autoremove_timeout.timestamp() * 1e9
             if autoremove_timestamp < actual_time:
                 self.autoremove_timeout += datetime.timedelta(days=1)
+            else:
+                autoremove_timestamp = None
         elif isinstance(self.autoremove_timeout, int):
             autoremove_timestamp = actual_time - self.autoremove_timeout * 1e9
         for group in self.__cache.message_groups.values():
