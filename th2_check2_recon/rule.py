@@ -252,18 +252,17 @@ class Rule:
 
     def clear_out_of_timeout(self, actual_timestamp: int):
         if self.autoremove_timeout is None:
-            autoremove_timestamp = None
+            return
         elif isinstance(self.autoremove_timeout, datetime.datetime):
             autoremove_timestamp = self.autoremove_timeout.timestamp() * 1e9
             if autoremove_timestamp < actual_timestamp:
                 self.autoremove_timeout += datetime.timedelta(days=1)
                 self.clear_cache()
-            autoremove_timestamp = None
+            return
         elif isinstance(self.autoremove_timeout, int):
             autoremove_timestamp = actual_timestamp - self.autoremove_timeout * 1e9
-        if autoremove_timestamp is not None:
-            for group in self.__cache.message_groups.values():
-                group.clear_out_of_timeout(autoremove_timestamp)
+        for group in self.__cache.message_groups.values():
+            group.clear_out_of_timeout(autoremove_timestamp)
 
     def stop(self):
         self.__cache.stop()
