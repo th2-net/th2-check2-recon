@@ -322,9 +322,7 @@ class Cache(AbstractService):
                 self.remove(hash_for_remove, cause, remove_all=False)
                 self.put(message)
 
-        def check_no_match_within_timeout(self, actual_timestamp: int, timeout: int, clean_timestamp: Optional[int]):
-            if clean_timestamp is not None:
-                self.clear_out_of_timeout(clean_timestamp)
+        def check_no_match_within_timeout(self, actual_timestamp: int, timeout: int):
             lower_bound_timestamp = actual_timestamp - timeout
             for timestamp, hashes in self.hash_by_sorted_timestamp.items():
                 if timestamp < lower_bound_timestamp:
