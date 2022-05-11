@@ -73,7 +73,7 @@ class GRPCHandler(DataProcessorServicer):
 
     def CrawlerConnect(self, request, context):
         logger.debug('CrawlerId {0} connected'.format(request.id.name))
-        version = json.loads(open('../package_info.json').read())['package_version']
+        version = '1.0.0'
         return DataProcessorInfo(name='Recon Data Processor', version=version)
 
     def IntervalStart(self, request, context):
