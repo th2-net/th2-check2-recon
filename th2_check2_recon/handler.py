@@ -27,7 +27,6 @@ from th2_grpc_crawler_data_processor.crawler_data_processor_pb2 import Status, \
 from th2_grpc_crawler_data_processor.crawler_data_processor_pb2_grpc import DataProcessorServicer
 
 from th2_check2_recon.common import MessageUtils
-from th2_check2_recon.recon import Recon
 from th2_check2_recon.reconcommon import ReconMessage
 
 logger = logging.getLogger(__name__)
