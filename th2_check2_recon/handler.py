@@ -11,15 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import json
 import logging
 import time
 from abc import ABC, abstractmethod
 
+from google.protobuf.empty_pb2 import Empty
 from google.protobuf.text_format import MessageToString
 from th2_common.schema.message.message_listener import MessageListener
 from th2_grpc_common.common_pb2 import MessageBatch
 from th2_grpc_crawler_data_processor.crawler_data_processor_pb2 import Status, \
-    MessageResponse
+    MessageResponse, DataProcessorInfo, EventResponse
 from th2_grpc_crawler_data_processor.crawler_data_processor_pb2_grpc import DataProcessorServicer
 
 from th2_check2_recon.common import MessageUtils
@@ -67,9 +70,24 @@ class GRPCHandler(DataProcessorServicer):
     def __init__(self, recon: Recon) -> None:
         self._recon = recon
 
+    def CrawlerConnect(self, request, context):
+        logger.debug('CrawlerId {0} connected'.format(request.id.name))
+        version = json.loads(open('../package_info.json').read())['package_version']
+        return DataProcessorInfo(name='Recon Data Processor', version=version)
+
+    def IntervalStart(self, request, context):
+        logger.debug('Interval set from {0} to {1}'.format(request.start_time, request.end_time))
+        return Empty()
+
+    def SendEvent(self, request, context):
+        logger.debug('CrawlerID {0} sent events {1}'.format(request.id.name,
+                                                            MessageToString(request.event_data, as_one_line=True)))
+        return EventResponse(id=self._recon.event_store.root_event.id, status=Status(handshake_required=False))
+
     def SendMessage(self, request, context):
         try:
-            logger.debug('CrawlerID %s sent messages %s', request.id.name, MessageToString(request.message_data, as_one_line=True))
+            logger.debug('CrawlerID %s sent messages %s',
+                         request.id.name, MessageToString(request.message_data, as_one_line=True))
             messages = [message.message for data in request.message_data
                         for message in data.message_item]
             for proto_message in messages:
@@ -85,7 +103,8 @@ class GRPCHandler(DataProcessorServicer):
                                          f'Message: {MessageToString(proto_message, as_one_line=True)}')
                     finally:
                         process_timer.observe(time.time() - start_time)
-                logger.debug("Processed '%s' id='%s'", proto_message.metadata.message_type, MessageUtils.str_message_id(proto_message))
+                logger.debug("Processed '%s' id='%s'",
+                             proto_message.metadata.message_type, MessageUtils.str_message_id(proto_message))
             return MessageResponse(ids=[msg.metadata.id for msg in messages], status=Status(handshake_required=False))
         except Exception as e:
             logger.exception('SendMessage request failed')
