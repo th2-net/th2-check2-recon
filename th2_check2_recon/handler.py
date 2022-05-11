@@ -16,11 +16,12 @@ import json
 import logging
 import time
 from abc import ABC, abstractmethod
+from typing import List
 
 from google.protobuf.empty_pb2 import Empty
 from google.protobuf.text_format import MessageToString
 from th2_common.schema.message.message_listener import MessageListener
-from th2_grpc_common.common_pb2 import MessageBatch
+from th2_grpc_common.common_pb2 import MessageBatch, EventID
 from th2_grpc_crawler_data_processor.crawler_data_processor_pb2 import Status, \
     MessageResponse, DataProcessorInfo, EventResponse
 from th2_grpc_crawler_data_processor.crawler_data_processor_pb2_grpc import DataProcessorServicer
@@ -67,8 +68,9 @@ class MessageHandler(AbstractHandler):
 
 class GRPCHandler(DataProcessorServicer):
 
-    def __init__(self, recon: Recon) -> None:
-        self._recon = recon
+    def __init__(self, rules: List, root_event_id: EventID) -> None:
+        self._rules = rules
+        self._recon_root_event_id = root_event_id
 
     def CrawlerConnect(self, request, context):
         logger.debug('CrawlerId {0} connected'.format(request.id.name))
@@ -82,7 +84,7 @@ class GRPCHandler(DataProcessorServicer):
     def SendEvent(self, request, context):
         logger.debug('CrawlerID {0} sent events {1}'.format(request.id.name,
                                                             MessageToString(request.event_data, as_one_line=True)))
-        return EventResponse(id=self._recon.event_store.root_event.id, status=Status(handshake_required=False))
+        return EventResponse(id=self._recon_root_event_id, status=Status(handshake_required=False))
 
     def SendMessage(self, request, context):
         try:
@@ -92,7 +94,7 @@ class GRPCHandler(DataProcessorServicer):
                         for message in data.message_item]
             for proto_message in messages:
                 message = ReconMessage(proto_message=proto_message)
-                for rule in self._recon.rules:
+                for rule in self._rules:
                     process_timer = rule.RULE_PROCESSING_TIME
                     start_time = time.time()
                     try:
