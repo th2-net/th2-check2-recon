@@ -184,6 +184,10 @@ class Rule:
             yield [message] + functools.reduce(lambda inner_list1, inner_list2: inner_list1+inner_list2, matched_messages)
             return
 
+        if len(self.description_of_groups_bridge()) == 1:
+            yield [message]
+            return
+
         for match in zip(*matched_messages):
             yield [message] + list(match)
 
