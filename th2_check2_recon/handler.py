@@ -95,7 +95,7 @@ class GRPCHandler(DataProcessorServicer):
                     process_timer = rule.RULE_PROCESSING_TIME
                     start_time = time.time()
                     try:
-                        rule.process((), message)
+                        rule.process(message, ())
                     except Exception:
                         logger.exception(f'Rule: {rule.get_name()}. '
                                          f'An error occurred while processing the message. '
