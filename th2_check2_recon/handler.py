@@ -89,8 +89,7 @@ class GRPCHandler(DataProcessorServicer):
         try:
             logger.debug('CrawlerID %s sent messages %s',
                          request.id.name, MessageToString(request.message_data, as_one_line=True))
-            messages = [message.message for data in request.message_data
-                        for message in data.message_item]
+            messages = [data.message for data in request.message_data]
             for proto_message in messages:
                 message = ReconMessage(proto_message=proto_message)
                 for rule in self._rules:
