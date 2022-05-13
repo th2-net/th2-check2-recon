@@ -87,8 +87,7 @@ class GRPCHandler(DataProcessorServicer):
 
     def SendMessage(self, request, context):
         try:
-            logger.debug('CrawlerID %s sent messages %s',
-                         request.id.name, MessageToString(request.message_data, as_one_line=True))
+            logger.debug('CrawlerID %s sent %s messages', request.id.name, len(request.message_data))
             messages = [data.message for data in request.message_data]
             for proto_message in messages:
                 message = ReconMessage(proto_message=proto_message)
