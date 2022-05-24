@@ -19,7 +19,7 @@ from typing import Optional
 from grpc import Server
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_common.schema.message.message_router import MessageRouter
-from th2_grpc_check2_recon import check2_recon_pb2_grpc
+from th2_grpc_crawler_data_processor import crawler_data_processor_pb2_grpc
 
 from th2_check2_recon.configuration import ReconConfiguration
 from th2_check2_recon.handler import GRPCHandler
@@ -54,8 +54,8 @@ class Recon:
                     self.__message_router.subscribe_all(rule.get_listener(), *attrs)
 
             if self.grpc_server is not None:
-                grpc_handler = GRPCHandler(self.rules)
-                check2_recon_pb2_grpc.add_Check2ReconServicer_to_server(grpc_handler, self.grpc_server)
+                grpc_handler = GRPCHandler(self.rules, self.event_store.root_event.id)
+                crawler_data_processor_pb2_grpc.add_DataProcessorServicer_to_server(grpc_handler, self.grpc_server)
                 self.grpc_server.start()
 
             logger.info('Recon started!')
