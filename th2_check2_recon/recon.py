@@ -54,7 +54,8 @@ class Recon:
                     self.__message_router.subscribe_all(rule.get_listener(), *attrs)
 
             if self.grpc_server is not None:
-                grpc_handler = GRPCHandler(self.rules, self.event_store.root_event.id)
+                grpc_handler = GRPCHandler(self.rules, self._config.crawler_connection_configuration,
+                                           self.event_store.root_event.id)
                 crawler_data_processor_pb2_grpc.add_DataProcessorServicer_to_server(grpc_handler, self.grpc_server)
                 self.grpc_server.start()
 

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -27,6 +26,7 @@ from th2_grpc_crawler_data_processor.crawler_data_processor_pb2 import Status, \
 from th2_grpc_crawler_data_processor.crawler_data_processor_pb2_grpc import DataProcessorServicer
 
 from th2_check2_recon.common import MessageUtils
+from th2_check2_recon.configuration import CrawlerConnectionConfiguration
 from th2_check2_recon.reconcommon import ReconMessage
 
 logger = logging.getLogger(__name__)
@@ -67,22 +67,24 @@ class MessageHandler(AbstractHandler):
 
 class GRPCHandler(DataProcessorServicer):
 
-    def __init__(self, rules: List, root_event_id: EventID) -> None:
+    def __init__(self, rules: List, crawler_connection_configuration: CrawlerConnectionConfiguration,
+                 root_event_id: EventID) -> None:
         self._rules = rules
+        self._crawler_connection_configuration = crawler_connection_configuration
         self._recon_root_event_id = root_event_id
 
     def CrawlerConnect(self, request, context):
-        logger.debug('CrawlerId {0} connected'.format(request.id.name))
-        version = '1.0.0'
-        return DataProcessorInfo(name='Recon Data Processor', version=version)
+        logger.debug('CrawlerId %s connected', request.id.name)
+        return DataProcessorInfo(name=self._crawler_connection_configuration.name,
+                                 version=self._crawler_connection_configuration.version)
 
     def IntervalStart(self, request, context):
-        logger.debug('Interval set from {0} to {1}'.format(request.start_time, request.end_time))
+        logger.debug('Interval set from %s to %s', request.start_time, request.end_time)
         return Empty()
 
     def SendEvent(self, request, context):
-        logger.debug('CrawlerID {0} sent events {1}'.format(request.id.name,
-                                                            MessageToString(request.event_data, as_one_line=True)))
+        logger.debug('CrawlerID %s sent events %s',
+                     request.id.name, MessageToString(request.event_data, as_one_line=True))
         return EventResponse(id=self._recon_root_event_id, status=Status(handshake_required=False))
 
     def SendMessage(self, request, context):
