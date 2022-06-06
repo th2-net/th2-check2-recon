@@ -92,8 +92,8 @@ class GRPCHandler(DataProcessorServicer):
             logger.debug('CrawlerID %s sent %s messages', request.id.name, len(request.message_data))
             messages = [data.message for data in request.message_data]
             for proto_message in messages:
-                message = ReconMessage(proto_message=proto_message)
                 for rule in self._rules:
+                    message = ReconMessage(proto_message=proto_message)
                     process_timer = rule.RULE_PROCESSING_TIME
                     start_time = time.time()
                     try:
