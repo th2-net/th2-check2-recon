@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 
 class Rule:
 
-    def __init__(self, recon: Recon, cache_size: int, match_timeout: int, autoremove_timeout: Optional[int], configuration) -> None:
+    def __init__(self, recon: Recon, cache_size: int, match_timeout: int, autoremove_timeout: Optional[int],
+                 configuration) -> None:
         self.recon = recon
         self.configure(configuration)
         self.name = self.get_name()
@@ -61,9 +62,10 @@ class Rule:
 
         self.__cache = Cache(self, cache_size)
 
-        self.RULE_PROCESSING_TIME = Histogram(f"th2_recon_{re.sub('[^a-zA-Z0-9_: ]', '', self.name).lower().replace(' ', '_')}_rule_processing_time",
-                                              'Time of the message processing with a rule',
-                                              buckets=common_metrics.DEFAULT_BUCKETS)
+        self.RULE_PROCESSING_TIME = Histogram(
+            f"th2_recon_{re.sub('[^a-zA-Z0-9_: ]', '', self.name).lower().replace(' ', '_')}_rule_processing_time",
+            'Time of the message processing with a rule',
+            buckets=common_metrics.DEFAULT_BUCKETS)
 
         logger.info("Rule '%s' initialized", self.name)
 
@@ -134,13 +136,14 @@ class Rule:
 
         self.__group_and_store_event(message, attributes, *args, **kwargs)
         if message.group_id is None:
-            logger.warning("RULE '%s': Ignored %s due to unset group_id", self.name, message.all_info)
+            logger.debug("RULE '%s': Ignored %s due to unset group_id", self.name, message.all_info)
             return
 
         self.__hash_and_store_event(message, attributes, *args, **kwargs)
         if message.hash is None:
-            logger.warning("RULE '%s': Ignored %s due to unset hash", self.name, message.all_info)
+            logger.debug("RULE '%s': Ignored %s due to unset hash", self.name, message.all_info)
             return
+
         if message.group_id not in self.__cache.message_groups:
             raise Exception(F"'group' method set incorrect groups.\n"
                             F" - message: {message.all_info}\n"
@@ -152,7 +155,7 @@ class Rule:
 
         for match in self.find_matched_messages(message, match_whole_list=match_all):
             if match is None:  # Will return None if some of the groups did not contain the message.
-                if MessageGroupType.shared in self.description_of_groups_bridge()[message.group_id] and\
+                if MessageGroupType.shared in self.description_of_groups_bridge()[message.group_id] and \
                         message.group_id not in message.in_shared_groups:
                     message.in_shared_groups.add(message.group_id)
                 main_group.put(message)
@@ -172,6 +175,11 @@ class Rule:
         self.reprocess_queue.clear()
 
     def find_matched_messages(self, message, match_whole_list=False):
+
+        if len(self.description_of_groups_bridge()) == 1:
+            yield [message]
+            return
+
         matched_messages = list()
         for group_id, group in self.__cache.message_groups.items():
             if group_id == message.group_id:
@@ -179,9 +187,10 @@ class Rule:
             if message.hash not in group:
                 yield None
             matched_messages.append(group.data[message.hash])
-            
+
         if match_whole_list:
-            yield [message] + functools.reduce(lambda inner_list1, inner_list2: inner_list1+inner_list2, matched_messages)
+            yield [message] + functools.reduce(lambda inner_list1, inner_list2: inner_list1 + inner_list2,
+                                               matched_messages)
             return
 
         for match in zip(*matched_messages):
@@ -241,7 +250,8 @@ class Rule:
                                            check_event=check_event)
 
     def log_groups_size(self):
-        return "[" + ', '.join(f"'{group.id}': {group.size} msg" for group in self.__cache.message_groups.values()) + "]"
+        return "[" + ', '.join(
+            f"'{group.id}': {group.size} msg" for group in self.__cache.message_groups.values()) + "]"
 
     def cache_size(self):
         return sum(group.size for group in self.__cache.message_groups)

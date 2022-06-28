@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import datetime
+from typing import Optional, Dict
 
 
 class RuleConfiguration:
@@ -26,15 +28,24 @@ class RuleConfiguration:
                 self.autoremove_timeout = int(autoremove_timeout)
             except ValueError:
                 self.autoremove_timeout = datetime.datetime.strptime(autoremove_timeout, '%H:%M')
-                self.autoremove_timeout = self.autoremove_timeout.combine(datetime.datetime.now().date(), self.autoremove_timeout.time())
+                self.autoremove_timeout = self.autoremove_timeout.combine(datetime.datetime.now().date(),
+                                                                          self.autoremove_timeout.time())
         else:
             self.autoremove_timeout = None
         self.configuration = configuration
 
 
+class CrawlerConnectionConfiguration:
+
+    def __init__(self, name: str = 'Recon Data Processor', version: str = '1.0.0') -> None:
+        self.name = name
+        self.version = version
+
+
 class ReconConfiguration:
     def __init__(self, recon_name: str, cache_size: int, event_batch_max_size: int,
                  event_batch_send_interval: int, rules_package_path: str, rules: list,
+                 crawler_connection_configuration: Optional[Dict[str, str]] = None,
                  configuration=None) -> None:
         self.recon_name = recon_name
         self.cache_size = int(cache_size)
@@ -42,4 +53,10 @@ class ReconConfiguration:
         self.event_batch_send_interval = int(event_batch_send_interval)
         self.rules_package_path = rules_package_path
         self.rules = [RuleConfiguration(**rule) for rule in rules]
+
+        if crawler_connection_configuration is None:
+            self.crawler_connection_configuration = CrawlerConnectionConfiguration()
+        else:
+            self.crawler_connection_configuration = CrawlerConnectionConfiguration(**crawler_connection_configuration)
+
         self.configuration = configuration
