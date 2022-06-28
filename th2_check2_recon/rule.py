@@ -136,13 +136,14 @@ class Rule:
 
         self.__group_and_store_event(message, attributes, *args, **kwargs)
         if message.group_id is None:
-            logger.warning("RULE '%s': Ignored %s due to unset group_id", self.name, message.all_info)
+            logger.debug("RULE '%s': Ignored %s due to unset group_id", self.name, message.all_info)
             return
 
         self.__hash_and_store_event(message, attributes, *args, **kwargs)
         if message.hash is None:
-            logger.warning("RULE '%s': Ignored %s due to unset hash", self.name, message.all_info)
+            logger.debug("RULE '%s': Ignored %s due to unset hash", self.name, message.all_info)
             return
+
         if message.group_id not in self.__cache.message_groups:
             raise Exception(F"'group' method set incorrect groups.\n"
                             F" - message: {message.all_info}\n"
@@ -174,6 +175,11 @@ class Rule:
         self.reprocess_queue.clear()
 
     def find_matched_messages(self, message, match_whole_list=False):
+
+        if len(self.description_of_groups_bridge()) == 1:
+            yield [message]
+            return
+
         matched_messages = list()
         for group_id, group in self.__cache.message_groups.items():
             if group_id == message.group_id:
@@ -185,10 +191,6 @@ class Rule:
         if match_whole_list:
             yield [message] + functools.reduce(lambda inner_list1, inner_list2: inner_list1 + inner_list2,
                                                matched_messages)
-            return
-
-        if len(self.description_of_groups_bridge()) == 1:
-            yield [message]
             return
 
         for match in zip(*matched_messages):
