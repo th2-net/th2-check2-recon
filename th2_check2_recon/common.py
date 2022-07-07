@@ -75,13 +75,15 @@ class MessageUtils:
 
     @staticmethod
     def get_timestamp_ns(message: Message) -> int:
-        return message.metadata.timestamp.ToNanoseconds()
+        msg_time = message.get('metadata', {}).get('timestamp', 0)
+        return int(msg_time if isinstance(msg_time, int) else datetime.fromisoformat(msg_time[:-1]).timestamp() * 1e9)
 
     @staticmethod
     def str_message_id(message: Message) -> str:
         res = ""
-        params = message.metadata.id.connection_id.session_alias, Direction.Name(message.metadata.id.direction), \
-                 message.metadata.id.sequence
+        params = message.get('metadata', {}).get('id', {}).get('connection_id', {}).get('session_alias', ''),\
+                 Direction.Name(message.get('metadata', {}).get('id', {}).get('direction', 0)), \
+                 message.get('metadata', {}).get('id', {}).get('sequence', 0)
         for param in params:
             res += str(param) + ':' if param else 'None: '
         return res

@@ -20,6 +20,9 @@ from typing import List
 from google.protobuf.empty_pb2 import Empty
 from google.protobuf.text_format import MessageToString
 from th2_common.schema.message.message_listener import MessageListener
+from th2_common_utils import message_to_dict
+from th2_grpc_check2_recon.check2_recon_pb2_grpc import Check2ReconServicer
+from th2_grpc_common.common_pb2 import MessageBatch, RequestStatus
 from th2_grpc_common.common_pb2 import MessageBatch, EventID
 from th2_grpc_crawler_data_processor.crawler_data_processor_pb2 import Status, \
     MessageResponse, DataProcessorInfo, EventResponse
@@ -45,7 +48,8 @@ class MessageHandler(AbstractHandler):
     def handler(self, attributes: tuple, batch: MessageBatch):
         try:
             for proto_message in batch.messages:
-                message = ReconMessage(proto_message=proto_message)
+                proto = message_to_dict(proto_message)
+                message = ReconMessage(proto_message=proto)
 
                 process_timer = self._rule.RULE_PROCESSING_TIME
                 start_time = time.time()
@@ -56,7 +60,7 @@ class MessageHandler(AbstractHandler):
 
                 logger.debug("Processed '%s' id='%s'",
                              proto_message.metadata.message_type,
-                             MessageUtils.str_message_id(proto_message))
+                             MessageUtils.str_message_id(proto))
 
             logger.debug("Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
         except Exception:

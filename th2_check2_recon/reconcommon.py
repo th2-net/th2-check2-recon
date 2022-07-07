@@ -46,7 +46,7 @@ class ReconMessage:
     @property
     def all_info(self) -> str:
         if self._info is None:
-            result = f"'{self.proto_message.metadata.message_type if self.proto_message.metadata.message_type else 'None type '}" \
+            result = f"'{self.proto_message.get('metadata', {}).get('message_type', 'None type ')}" \
                      f"' id='{MessageUtils.str_message_id(self.proto_message)}'"
             self._info = result
         else:

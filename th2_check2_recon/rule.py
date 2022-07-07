@@ -254,7 +254,7 @@ class Rule:
             f"'{group.id}': {group.size} msg" for group in self.__cache.message_groups.values()) + "]"
 
     def cache_size(self):
-        return sum(group.size for group in self.__cache.message_groups)
+        return sum(group.size for group in self.__cache.message_groups.values())
 
     def check_no_match_within_timeout(self, actual_time: int):
         for group in self.__cache.message_groups.values():

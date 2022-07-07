@@ -21,6 +21,7 @@ from typing import Optional, Dict, List
 import sortedcollections
 from google.protobuf import text_format
 from th2_common.schema.event.event_batch_router import EventBatchRouter
+from th2_common_utils.converters.message_converters.dict_to_message import dict_to_message
 from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, Message
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
     CompareMessageVsMessageTask, CompareMessageVsMessageResult
@@ -203,8 +204,8 @@ class EventStore(AbstractService):
 
     def _get_attached_message_ids(self, *recon_msgs):
         try:
-            return [message.proto_message.metadata.id for message in recon_msgs]
-        except AttributeError:
+            return [message.proto_message['metadata']['id'] for message in recon_msgs]
+        except KeyError:
             return []
 
 
@@ -238,7 +239,7 @@ class MessageComparator(AbstractService):
         if ignore_fields is not None:
             settings.ignore_fields.extend(ignore_fields)
 
-        compare_result = self.compare(messages[0].proto_message, messages[1].proto_message, settings)
+        compare_result = self.compare(dict_to_message(messages[0].proto_message['fields']), dict_to_message(messages[1].proto_message['fields']), settings)
         return VerificationComponent(compare_result.comparison_result)
 
     def stop(self):
