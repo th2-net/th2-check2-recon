@@ -39,7 +39,12 @@ setup(
     url='https://github.com/th2-net/th2-check2-recon',
     license='Apache License 2.0',
     python_requires='>=3.7',
-    install_requires=requirements,
+    install_requires=[
+        'sortedcollections==2.1.0',
+        'th2-grpc-util==3.0.4.dev2690809229',
+        'th2-common>=4.0.0.dev2690726428,<5',
+        'th2-grpc-crawler-data-processor==0.3.1.dev2690675567'
+    ],
     packages=find_packages(include=['th2_check2_recon', 'th2_check2_recon.*']),
     include_package_data=True,
 )
