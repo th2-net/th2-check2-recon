@@ -1,4 +1,4 @@
-# Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+# Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ class MessageHandler(AbstractHandler):
                 process_timer.observe(time.time() - start_time)
 
                 logger.debug("Processed '%s' id='%s'",
-                             proto_message.metadata.message_type,
+                             data['message_type'],
                              MessageUtils.str_message_id(data))
 
             logger.debug("Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
@@ -108,7 +108,7 @@ class GRPCHandler(DataProcessorServicer):
                     finally:
                         process_timer.observe(time.time() - start_time)
                 logger.debug("Processed '%s' id='%s'",
-                             proto_message.metadata.message_type, MessageUtils.str_message_id(data))
+                             data['message_type'], MessageUtils.str_message_id(data))
             return MessageResponse(ids=[msg.metadata.id for msg in messages], status=Status(handshake_required=False))
         except Exception as e:
             logger.exception('SendMessage request failed')

@@ -1,4 +1,4 @@
-# Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+# Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import enum
 import logging
 import uuid
@@ -76,15 +77,13 @@ class MessageUtils:
 
     @staticmethod
     def get_timestamp_ns(message: Dict[str, Any]) -> int:
-        msg_time = message['metadata'].get('timestamp', 0)
-        return int(msg_time if isinstance(msg_time, int) else datetime.fromisoformat(msg_time[:-1]).timestamp() * 1e9)
+        timestamp = message['timestamp']
+        return timestamp.ToNanoseconds() if timestamp is not None else 0
 
     @staticmethod
     def str_message_id(message: Dict[str, Any]) -> str:
         res = ""
-        params = message['metadata'].get('id', {}).get('connection_id', {}).get('session_alias', ''),\
-                 Direction.Name(message['metadata'].get('id', {}).get('direction', 0)), \
-                 message['metadata'].get('id', {}).get('sequence', 0)
+        params = message['session_alias'], Direction.Name(message['direction']), message['sequence']
         for param in params:
             res += str(param) + ':' if param else 'None: '
         return res

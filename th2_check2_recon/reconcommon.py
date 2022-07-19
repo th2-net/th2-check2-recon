@@ -1,4 +1,4 @@
-# Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+# Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ class ReconMessage:
     @property
     def all_info(self) -> str:
         if self._info is None:
-            result = f"'{self.proto_message['metadata'].get('message_type', 'None type ')}" \
+            result = f"'{self.proto_message['message_type']}" \
                      f"' id='{MessageUtils.str_message_id(self.proto_message)}'"
             self._info = result
         else:
