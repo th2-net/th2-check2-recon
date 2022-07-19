@@ -77,13 +77,15 @@ class MessageUtils:
 
     @staticmethod
     def get_timestamp_ns(message: Dict[str, Any]) -> int:
-        timestamp = message['timestamp']
+        timestamp = message['metadata']['timestamp']
         return timestamp.ToNanoseconds() if timestamp is not None else 0
 
     @staticmethod
     def str_message_id(message: Dict[str, Any]) -> str:
         res = ""
-        params = message['session_alias'], Direction.Name(message['direction']), message['sequence']
+        params = message['metadata']['session_alias'], \
+                 Direction.Name(message['metadata']['direction']), \
+                 message['metadata']['sequence']
         for param in params:
             res += str(param) + ':' if param else 'None: '
         return res
