@@ -46,8 +46,8 @@ class MessageHandler(AbstractHandler):
     def handler(self, attributes: tuple, batch: MessageBatch):
         try:
             for proto_message in batch.messages:
-                proto = message_to_dict(proto_message)
-                message = ReconMessage(proto_message=proto)
+                data = message_to_dict(proto_message)
+                message = ReconMessage(proto_message=data)
 
                 process_timer = self._rule.RULE_PROCESSING_TIME
                 start_time = time.time()
@@ -58,7 +58,7 @@ class MessageHandler(AbstractHandler):
 
                 logger.debug("Processed '%s' id='%s'",
                              proto_message.metadata.message_type,
-                             MessageUtils.str_message_id(proto))
+                             MessageUtils.str_message_id(data))
 
             logger.debug("Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
         except Exception:
@@ -94,8 +94,9 @@ class GRPCHandler(DataProcessorServicer):
             logger.debug('CrawlerID %s sent %s messages', request.id.name, len(request.message_data))
             messages = [data.message for data in request.message_data]
             for proto_message in messages:
+                data = message_to_dict(proto_message)
                 for rule in self._rules:
-                    message = ReconMessage(proto_message=proto_message)
+                    message = ReconMessage(proto_message=data)
                     process_timer = rule.RULE_PROCESSING_TIME
                     start_time = time.time()
                     try:
@@ -107,7 +108,7 @@ class GRPCHandler(DataProcessorServicer):
                     finally:
                         process_timer.observe(time.time() - start_time)
                 logger.debug("Processed '%s' id='%s'",
-                             proto_message.metadata.message_type, MessageUtils.str_message_id(proto_message))
+                             proto_message.metadata.message_type, MessageUtils.str_message_id(data))
             return MessageResponse(ids=[msg.metadata.id for msg in messages], status=Status(handshake_required=False))
         except Exception as e:
             logger.exception('SendMessage request failed')

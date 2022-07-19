@@ -16,6 +16,7 @@ import logging
 import uuid
 from datetime import datetime
 from json import JSONEncoder
+from typing import Any, Dict
 
 from google.protobuf.timestamp_pb2 import Timestamp
 from th2_grpc_common.common_pb2 import Event, Message
@@ -74,16 +75,16 @@ class EventUtils:
 class MessageUtils:
 
     @staticmethod
-    def get_timestamp_ns(message: Message) -> int:
-        msg_time = message.get('metadata', {}).get('timestamp', 0)
+    def get_timestamp_ns(message: Dict[str, Any]) -> int:
+        msg_time = message['metadata'].get('timestamp', 0)
         return int(msg_time if isinstance(msg_time, int) else datetime.fromisoformat(msg_time[:-1]).timestamp() * 1e9)
 
     @staticmethod
-    def str_message_id(message: Message) -> str:
+    def str_message_id(message: Dict[str, Any]) -> str:
         res = ""
-        params = message.get('metadata', {}).get('id', {}).get('connection_id', {}).get('session_alias', ''),\
-                 Direction.Name(message.get('metadata', {}).get('id', {}).get('direction', 0)), \
-                 message.get('metadata', {}).get('id', {}).get('sequence', 0)
+        params = message['metadata'].get('id', {}).get('connection_id', {}).get('session_alias', ''),\
+                 Direction.Name(message['metadata'].get('id', {}).get('direction', 0)), \
+                 message['metadata'].get('id', {}).get('sequence', 0)
         for param in params:
             res += str(param) + ':' if param else 'None: '
         return res
