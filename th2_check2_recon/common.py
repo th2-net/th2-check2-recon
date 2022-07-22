@@ -20,8 +20,8 @@ from json import JSONEncoder
 from typing import Any, Dict
 
 from google.protobuf.timestamp_pb2 import Timestamp
-from th2_grpc_common.common_pb2 import Event, Message
-from th2_grpc_common.common_pb2 import EventStatus, EventID, MessageID, FilterOperation, Direction
+from th2_grpc_common.common_pb2 import Event
+from th2_grpc_common.common_pb2 import EventStatus, EventID, MessageID, FilterOperation
 from th2_grpc_util.util_pb2 import ComparisonEntryStatus, ComparisonEntry, ComparisonEntryType
 
 logger = logging.getLogger(__name__)
@@ -83,9 +83,7 @@ class MessageUtils:
     @staticmethod
     def str_message_id(message: Dict[str, Any]) -> str:
         res = ""
-        params = message['metadata']['session_alias'], \
-                 Direction.Name(message['metadata']['direction']), \
-                 message['metadata']['sequence']
+        params = message['metadata']['session_alias'], message['metadata']['direction'], message['metadata']['sequence']
         for param in params:
             res += str(param) + ':' if param else 'None: '
         return res
