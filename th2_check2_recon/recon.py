@@ -82,7 +82,7 @@ class Recon:
         logger.info('Try load rules')
         rules_package = importlib.import_module(self._config.rules_package_path)
         loaded_rules = []
-        for rule_config in self._config.rules:
+        for number, rule_config in enumerate(self._config.rules):
             if rule_config.enabled:
                 module = importlib.import_module(rules_package.__name__ + '.' + rule_config.name)
                 match_timeout = rule_config.match_timeout * 1_000_000_000 + rule_config.match_timeout_offset_ns
@@ -90,7 +90,8 @@ class Recon:
                                                 cache_size=self._config.cache_size,
                                                 match_timeout=match_timeout,
                                                 autoremove_timeout=rule_config.autoremove_timeout,
-                                                configuration=rule_config.configuration))
+                                                configuration=rule_config.configuration,
+                                                metric_number=number + 1))
         logger.info('Rules loaded')
         return loaded_rules
 
