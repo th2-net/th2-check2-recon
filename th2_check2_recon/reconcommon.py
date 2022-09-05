@@ -1,4 +1,4 @@
-# Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+# Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from enum import Enum
+from typing import Any, Dict
 
 from th2_check2_recon.common import MessageUtils
 
@@ -21,7 +22,7 @@ class ReconMessage:
     __slots__ = ("proto_message", "group_info", "group_id", "hash_info", "hash", "is_matched",
                  "is_check_no_match_within_timeout", "_timestamp", "in_shared_groups", '_info')
 
-    def __init__(self, proto_message) -> None:
+    def __init__(self, proto_message: Dict[str, Any]) -> None:
         self.proto_message = proto_message
         self.group_info = dict()
         self.group_id = None
@@ -46,7 +47,7 @@ class ReconMessage:
     @property
     def all_info(self) -> str:
         if self._info is None:
-            result = f"'{self.proto_message.metadata.message_type if self.proto_message.metadata.message_type else 'None type '}" \
+            result = f"'{self.proto_message['metadata']['message_type']}" \
                      f"' id='{MessageUtils.str_message_id(self.proto_message)}'"
             self._info = result
         else:

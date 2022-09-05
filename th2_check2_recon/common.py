@@ -1,4 +1,4 @@
-# Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+# Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,15 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import enum
 import logging
 import uuid
 from datetime import datetime
 from json import JSONEncoder
+from typing import Any, Dict
 
 from google.protobuf.timestamp_pb2 import Timestamp
-from th2_grpc_common.common_pb2 import Event, Message
-from th2_grpc_common.common_pb2 import EventStatus, EventID, MessageID, FilterOperation, Direction
+from th2_grpc_common.common_pb2 import Event
+from th2_grpc_common.common_pb2 import EventStatus, EventID, MessageID, FilterOperation
 from th2_grpc_util.util_pb2 import ComparisonEntryStatus, ComparisonEntry, ComparisonEntryType
 
 logger = logging.getLogger(__name__)
@@ -74,14 +76,14 @@ class EventUtils:
 class MessageUtils:
 
     @staticmethod
-    def get_timestamp_ns(message: Message) -> int:
-        return message.metadata.timestamp.ToNanoseconds()
+    def get_timestamp_ns(message: Dict[str, Any]) -> int:
+        timestamp = message['metadata']['timestamp']
+        return int(timestamp.timestamp() * 1_000_000) if timestamp is not None else 0
 
     @staticmethod
-    def str_message_id(message: Message) -> str:
+    def str_message_id(message: Dict[str, Any]) -> str:
         res = ""
-        params = message.metadata.id.connection_id.session_alias, Direction.Name(message.metadata.id.direction), \
-                 message.metadata.id.sequence
+        params = message['metadata']['session_alias'], message['metadata']['direction'], message['metadata']['sequence']
         for param in params:
             res += str(param) + ':' if param else 'None: '
         return res
