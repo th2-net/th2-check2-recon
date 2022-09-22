@@ -96,9 +96,9 @@ class EventsBatchCollector(AbstractService):
 
 
 class EventStore(AbstractService):
-    MATCHED_FAILED = 'Matched failed'
-    MATCHED_PASSED = 'Matched passed'
-    MATCHED_OUT_OF_TIMEOUT = 'Matched out of timeout'
+    FAILED_MATCHES = 'Failed matches'
+    PASSED_MATCHES = 'Passed matches'
+    OUT_OF_TIMEOUT_MATCHES = 'Out of timeout matches'
     NO_MATCH_WITHIN_TIMEOUT = 'No match within timeout'
     NO_MATCH = 'No match'
     ERRORS = 'Errors'
@@ -191,13 +191,13 @@ class EventStore(AbstractService):
         self.send_event(event, rule_event_id, self.ERRORS)
 
     def store_matched_out_of_timeout(self, rule_event_id: EventID, check_event: Event):
-        self.send_event(check_event, rule_event_id, self.MATCHED_OUT_OF_TIMEOUT)
+        self.send_event(check_event, rule_event_id, self.OUT_OF_TIMEOUT_MATCHES)
 
     def store_matched(self, rule_event_id: EventID, check_event: Event):
         if check_event.status == EventStatus.SUCCESS:
-            self.send_event(check_event, rule_event_id, self.MATCHED_PASSED)
+            self.send_event(check_event, rule_event_id, self.PASSED_MATCHES)
         else:
-            self.send_event(check_event, rule_event_id, self.MATCHED_FAILED)
+            self.send_event(check_event, rule_event_id, self.FAILED_MATCHES)
 
     def stop(self):
         self.__events_batch_collector.stop()
