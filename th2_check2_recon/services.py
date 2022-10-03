@@ -16,7 +16,7 @@ import itertools
 import logging
 from abc import ABC, abstractmethod
 from threading import Lock, Timer
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Set
 
 import sortedcollections
 from google.protobuf import text_format
@@ -275,8 +275,8 @@ class Cache(AbstractService):
                                                                                              parent_event=self.rule_event)
                 self._message_groups[message_group_id] = self.rule.recon.shared_message_groups[message_group_id]
         has_multi = any(MessageGroupType.multi in group.type for group in self.message_groups.values())
-        for group in self.message_groups.values():
-            if has_multi:
+        if has_multi:
+            for group in self.message_groups.values():
                 if MessageGroupType.single in group.type:
                     group.is_cleanable = False
 
@@ -292,12 +292,12 @@ class Cache(AbstractService):
 
         __slots__ = 'id', 'capacity', 'size', 'type', 'event_store', 'parent_event', 'is_cleanable', 'data', 'hash_by_sorted_timestamp'
 
-        def __init__(self, id: str, capacity: int, type: {MessageGroupType}, event_store: EventStore,
+        def __init__(self, id: str, capacity: int, type: Set[MessageGroupType], event_store: EventStore,
                      parent_event: Event) -> None:
             self.id = id
             self.capacity = capacity
             self.size = 0
-            self.type: {MessageGroupType} = type
+            self.type: Set[MessageGroupType] = type
             self.event_store = event_store
             self.parent_event: Event = parent_event
 
@@ -309,6 +309,8 @@ class Cache(AbstractService):
         def put(self, message: ReconMessage):
             if self.size < self.capacity:
                 if message.hash in self.data and MessageGroupType.single in self.type:
+                    if MessageGroupType.shared in self.type:
+                        return
                     cause = f"The message was deleted because a new one came with the same hash '{message.hash}' " \
                             f"in message group '{self.id}'"
                     self.remove(message.hash, cause)
@@ -377,7 +379,7 @@ class Cache(AbstractService):
             self.size = 0
 
         def clear_out_of_timeout(self, clean_timestamp):
-            hashes_to_removal = list()
+            hashes_to_removal = []
             for timestamp, hashes in self.hash_by_sorted_timestamp.items():
                 if timestamp < clean_timestamp:
                     hashes_to_removal.append(hashes)

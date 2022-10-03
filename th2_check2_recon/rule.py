@@ -135,15 +135,14 @@ class Rule:
         new_message.group_id = shared_group_id
         self.recon.put_shared_message(shared_group_id, new_message, attributes)
 
-    def process(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
-        self.clear_out_of_timeout(message.timestamp)
-        self.check_no_match_within_timeout(message.timestamp)
-
+    def has_been_grouped(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         self.__group_and_store_event(message, attributes, *args, **kwargs)
         if message.group_id is None:
             logger.debug("RULE '%s': Ignored %s due to unset group_id", self.name, message.all_info)
-            return
+            return False
+        return True
 
+    def process(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         self.__hash_and_store_event(message, attributes, *args, **kwargs)
         if message.hash is None:
             logger.debug("RULE '%s': Ignored %s due to unset hash", self.name, message.all_info)

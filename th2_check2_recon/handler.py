@@ -52,7 +52,10 @@ class MessageHandler(AbstractHandler):
                 process_timer = self._rule.RULE_PROCESSING_TIME
                 start_time = time.time()
 
-                self._rule.process(message, attributes)
+                self._rule.clear_out_of_timeout(message.timestamp)
+                self._rule.check_no_match_within_timeout(message.timestamp)
+                if self._rule.has_been_grouped(message, attributes):
+                    self._rule.process(message, attributes)
 
                 process_timer.observe(time.time() - start_time)
 
@@ -100,7 +103,10 @@ class GRPCHandler(DataProcessorServicer):
                     process_timer = rule.RULE_PROCESSING_TIME
                     start_time = time.time()
                     try:
-                        rule.process(message, ())
+                        rule.clear_out_of_timeout(message.timestamp)
+                        rule.check_no_match_within_timeout(message.timestamp)
+                        if rule.has_been_grouped(message, ()):
+                            rule.process(message, ())
                     except Exception:
                         logger.exception(f'Rule: {rule.get_name()}. '
                                          f'An error occurred while processing the message. '
