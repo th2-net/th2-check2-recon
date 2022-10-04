@@ -22,7 +22,8 @@ import sortedcollections
 from google.protobuf import text_format
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_common_utils import dict_to_message
-from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, Message
+from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, Message, MessageID, ConnectionID, \
+    Direction
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
     CompareMessageVsMessageTask, CompareMessageVsMessageResult
 
@@ -202,9 +203,18 @@ class EventStore(AbstractService):
     def stop(self):
         self.__events_batch_collector.stop()
 
-    def _get_attached_message_ids(self, *recon_msgs):
+    def _get_attached_message_ids(self, *recon_msgs: ReconMessage):
         try:
-            return [message.proto_message['metadata']['id'] for message in recon_msgs]
+            return [
+                MessageID(
+                    connection_id=ConnectionID(session_alias=message.proto_message['metadata']['session_alias'],
+                                               session_group=message.proto_message['metadata']['session_group']),
+                    direction=getattr(Direction, message.proto_message['metadata']['direction']),
+                    sequence=message.proto_message['metadata']['sequence'],
+                    subsequence=message.proto_message['metadata']['subsequence']
+                )
+                for message in recon_msgs
+            ]
         except KeyError:
             return []
 
