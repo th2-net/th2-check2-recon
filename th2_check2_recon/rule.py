@@ -20,12 +20,10 @@ import traceback
 from abc import abstractmethod
 from typing import List, Optional
 
-from google.protobuf import text_format
 from prometheus_client import Histogram
 from th2_common.schema.metrics import common_metrics
-from th2_grpc_common.common_pb2 import Event
+from th2_grpc_common.common_pb2 import Event, EventID
 
-from th2_check2_recon.common import EventUtils, MessageComponent
 from th2_check2_recon.handler import MessageHandler, AbstractHandler
 from th2_check2_recon.recon import Recon
 from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp, MessageGroupType
@@ -56,14 +54,10 @@ class Rule:
 
         self.reprocess_queue = list()
 
-        self.rule_event: Event = \
-            EventUtils.create_event(name=self.name,
-                                    parent_id=recon.event_store.root_event.id,
-                                    body=EventUtils.create_event_body(MessageComponent(message=self.get_description())),
-                                    type=EventUtils.EventType.RULE)
-        logger.debug("Created report Event for Rule '%s': %s", self.name,
-                     text_format.MessageToString(self.rule_event, as_one_line=True))
-        self.event_store.send_parent_event(self.rule_event)
+        self.rule_event_id: EventID = self.event_store.create_and_send_rule_root_event(
+            rule_name=self.name,
+            rule_description=self.get_description()
+        )
 
         self.__cache = Cache(self, cache_size)
 
@@ -135,15 +129,14 @@ class Rule:
         new_message.group_id = shared_group_id
         self.recon.put_shared_message(shared_group_id, new_message, attributes)
 
-    def process(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
-        self.clear_out_of_timeout(message.timestamp)
-        self.check_no_match_within_timeout(message.timestamp)
-
+    def has_been_grouped(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         self.__group_and_store_event(message, attributes, *args, **kwargs)
         if message.group_id is None:
             logger.debug("RULE '%s': Ignored %s due to unset group_id", self.name, message.all_info)
-            return
+            return False
+        return True
 
+    def process(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         self.__hash_and_store_event(message, attributes, *args, **kwargs)
         if message.hash is None:
             logger.debug("RULE '%s': Ignored %s due to unset hash", self.name, message.all_info)
@@ -213,7 +206,7 @@ class Rule:
             self.group(message, attributes, *args, **kwargs)
         except Exception:
             logger.exception(f"RULE '{self.name}': An exception was caught while running 'group'")
-            self.event_store.store_error(rule_event_id=self.rule_event.id,
+            self.event_store.store_error(rule_event_id=self.rule_event_id,
                                          event_name="An exception was caught while running 'group'",
                                          error_message=traceback.format_exc(),
                                          messages=[message])
@@ -223,7 +216,7 @@ class Rule:
             self.hash(message, attributes, *args, **kwargs)
         except Exception:
             logger.exception(f"RULE '{self.name}': An exception was caught while running 'hash'")
-            self.event_store.store_error(rule_event_id=self.rule_event.id,
+            self.event_store.store_error(rule_event_id=self.rule_event_id,
                                          event_name="An exception was caught while running 'hash'",
                                          error_message=traceback.format_exc(),
                                          messages=[message])
@@ -235,7 +228,7 @@ class Rule:
             check_event: Event = self.check(matched_messages, attributes, *args, **kwargs)
         except Exception:
             logger.exception(f"RULE '{self.name}': An exception was caught while running 'check'")
-            self.event_store.store_error(rule_event_id=self.rule_event.id,
+            self.event_store.store_error(rule_event_id=self.rule_event_id,
                                          event_name="An exception was caught while running 'check'",
                                          error_message=traceback.format_exc(),
                                          messages=matched_messages)
@@ -248,10 +241,10 @@ class Rule:
         min_timestamp_msg = min(matched_messages, key=_get_msg_timestamp)
 
         if max_timestamp_msg.timestamp - min_timestamp_msg.timestamp > self.match_timeout:
-            self.event_store.store_matched_out_of_timeout(rule_event_id=self.rule_event.id,
+            self.event_store.store_matched_out_of_timeout(rule_event_id=self.rule_event_id,
                                                           check_event=check_event)
         else:
-            self.event_store.store_matched(rule_event_id=self.rule_event.id,
+            self.event_store.store_matched(rule_event_id=self.rule_event_id,
                                            check_event=check_event)
 
     def log_groups_size(self):

@@ -78,7 +78,7 @@ class MessageUtils:
     @staticmethod
     def get_timestamp_ns(message: Dict[str, Any]) -> int:
         timestamp = message['metadata']['timestamp']
-        return int(timestamp.timestamp() * 1_000_000) if timestamp is not None else 0
+        return int(timestamp.timestamp() * 10**9) if timestamp is not None else 0
 
     @staticmethod
     def str_message_id(message: Dict[str, Any]) -> str:
