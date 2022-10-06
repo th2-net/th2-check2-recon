@@ -38,7 +38,7 @@ class Recon:
         self._config = ReconConfiguration(**custom_config)
         self.__message_router = message_router
         self.event_store = EventStore(event_router=event_router,
-                                      report_name=self._config.recon_name,
+                                      recon_name=self._config.recon_name,
                                       event_batch_max_size=self._config.event_batch_max_size,
                                       event_batch_send_interval=self._config.event_batch_send_interval)
         self.message_comparator: Optional[MessageComparator] = message_comparator
@@ -55,7 +55,7 @@ class Recon:
 
             if self.grpc_server is not None:
                 grpc_handler = GRPCHandler(self.rules, self._config.crawler_connection_configuration,
-                                           self.event_store.root_event.id)
+                                           self.event_store.recon_event_id)
                 crawler_data_processor_pb2_grpc.add_DataProcessorServicer_to_server(grpc_handler, self.grpc_server)
                 self.grpc_server.start()
 
