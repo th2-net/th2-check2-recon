@@ -113,6 +113,7 @@ class EventStore(AbstractService):
         self.__events_batch_collector = EventsBatchCollector(event_router, event_batch_max_size,
                                                              event_batch_send_interval)
         self.__event_groups_by_root_event_id = defaultdict(dict)
+        self.__shared_messages_event_ids_by_shared_group_id: Dict[str, EventID] = {}
 
         self.recon_event_id: EventID = self.create_and_send_recon_root_event(recon_name)
         self.shared_messages_root_event_id = None
@@ -146,6 +147,13 @@ class EventStore(AbstractService):
         self.send_event(shared_messages_event)
         return shared_messages_event.id
 
+    def create_and_send_shared_group_id_root_event(self, shared_group_id):
+        shared_group_id_event: Event = EventUtils.create_event(parent_id=self.shared_messages_root_event_id,
+                                                               name=shared_group_id,
+                                                               type=EventUtils.EventType.EVENT)
+        self.send_event(shared_group_id_event)
+        return shared_group_id_event.id
+
     def create_and_send_single_message_event(self,
                                              recon_message: ReconMessage,
                                              event_name: str,
@@ -160,6 +168,7 @@ class EventStore(AbstractService):
 
         if len(recon_message.in_shared_groups) > 0:
             event = self.send_shared_message_event(event,
+                                                   shared_group_id=f"Groups: {recon_message.in_shared_groups}",
                                                    group_event_name=group_event_name)
         else:
             event = self.send_rule_event(event=event,
@@ -183,13 +192,20 @@ class EventStore(AbstractService):
 
     def send_shared_message_event(self,
                                   event: Event,
+                                  shared_group_id: str,
                                   group_event_name: GroupEvent) -> Event:
         if self.shared_messages_root_event_id is None:
             self.shared_messages_root_event_id = self.create_and_send_shared_messages_root_event()
 
-        group_event = self.__event_groups_by_root_event_id[self.shared_messages_root_event_id.id].get(group_event_name)
+        if shared_group_id not in self.__shared_messages_event_ids_by_shared_group_id:
+            self.__shared_messages_event_ids_by_shared_group_id[shared_group_id] = \
+                self.create_and_send_shared_group_id_root_event(shared_group_id)
+
+        shared_group_id_event_id = self.__shared_messages_event_ids_by_shared_group_id[shared_group_id]
+
+        group_event = self.__event_groups_by_root_event_id[shared_group_id_event_id.id].get(group_event_name)
         if group_event is None:
-            group_event = self.create_and_send_group_root_event(root_event_id=self.shared_messages_root_event_id,
+            group_event = self.create_and_send_group_root_event(root_event_id=shared_group_id_event_id,
                                                                 group_event_name=group_event_name)
 
         event.parent_id.CopyFrom(group_event.id)
