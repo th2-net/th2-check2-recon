@@ -23,7 +23,7 @@ class RuleConfiguration:
         self.enabled = True if enabled.lower() == 'true' else False
         self.match_timeout = int(match_timeout)
         self.match_timeout_offset_ns = int(match_timeout_offset_ns)
-        self.match_all = match_all
+        self.match_all = eval(match_all.capitalize()) if isinstance(match_all, str) else match_all
         if autoremove_timeout is not None:
             try:
                 self.autoremove_timeout = int(autoremove_timeout)
