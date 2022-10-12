@@ -41,7 +41,7 @@ class Rule:
                  autoremove_timeout: Optional[int],
                  configuration,
                  metric_number: int,
-                 match_all: bool = False) -> None:
+                 match_all: bool) -> None:
 
         self.recon = recon
         self.configure(configuration)

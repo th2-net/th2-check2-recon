@@ -18,7 +18,7 @@ from typing import Optional, Dict
 
 class RuleConfiguration:
 
-    def __init__(self, name, enabled, match_timeout, match_timeout_offset_ns, match_all, autoremove_timeout=None, configuration=None) -> None:
+    def __init__(self, name, enabled, match_timeout, match_timeout_offset_ns, match_all=False, autoremove_timeout=None, configuration=None) -> None:
         self.name = str(name)
         self.enabled = True if enabled.lower() == 'true' else False
         self.match_timeout = int(match_timeout)

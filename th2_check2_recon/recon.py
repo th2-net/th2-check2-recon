@@ -91,7 +91,8 @@ class Recon:
                                                 match_timeout=match_timeout,
                                                 autoremove_timeout=rule_config.autoremove_timeout,
                                                 configuration=rule_config.configuration,
-                                                metric_number=number + 1))
+                                                metric_number=number + 1,
+                                                match_all=rule_config.match_all))
         logger.info('Rules loaded')
         return loaded_rules
 
