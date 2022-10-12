@@ -40,7 +40,8 @@ class Rule:
                  match_timeout: int,
                  autoremove_timeout: Optional[int],
                  configuration,
-                 metric_number: int) -> None:
+                 metric_number: int,
+                 match_all: bool = False) -> None:
 
         self.recon = recon
         self.configure(configuration)
@@ -51,6 +52,7 @@ class Rule:
         self.message_comparator: Optional[MessageComparator] = recon.message_comparator
         self.match_timeout = match_timeout
         self.autoremove_timeout = autoremove_timeout
+        self.match_all = match_all
 
         self.reprocess_queue = list()
 
@@ -148,10 +150,9 @@ class Rule:
                             F" - available groups: {self.description_of_groups_bridge()}\n"
                             F" - message.group_id: {message.group_id}")
         main_group = self.__cache.message_groups[message.group_id]
-        match_all = MessageGroupType.multi_match_all in main_group.type
         logger.debug("RULE '%s': Received %s", self.name, message.all_info)
 
-        for match in self.find_matched_messages(message, match_whole_list=match_all):
+        for match in self.find_matched_messages(message, match_whole_list=self.match_all):
             if match is None:  # Will return None if some of the groups did not contain the message.
                 if MessageGroupType.shared in self.description_of_groups_bridge()[message.group_id] and \
                         message.group_id not in message.in_shared_groups:
@@ -161,7 +162,7 @@ class Rule:
             else:
                 self.__check_and_store_event(match, attributes, *args, **kwargs)
 
-        if match_all:
+        if self.match_all:
             main_group.put(message)
 
         for group_id, group in self.__cache.message_groups.items():

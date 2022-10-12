@@ -72,4 +72,3 @@ class MessageGroupType(Enum):
     single = 1
     multi = 2
     shared = 3
-    multi_match_all = 4

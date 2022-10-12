@@ -18,11 +18,12 @@ from typing import Optional, Dict
 
 class RuleConfiguration:
 
-    def __init__(self, name, enabled, match_timeout, match_timeout_offset_ns, autoremove_timeout=None, configuration=None) -> None:
+    def __init__(self, name, enabled, match_timeout, match_timeout_offset_ns, match_all, autoremove_timeout=None, configuration=None) -> None:
         self.name = str(name)
         self.enabled = True if enabled.lower() == 'true' else False
         self.match_timeout = int(match_timeout)
         self.match_timeout_offset_ns = int(match_timeout_offset_ns)
+        self.match_all = match_all
         if autoremove_timeout is not None:
             try:
                 self.autoremove_timeout = int(autoremove_timeout)
