@@ -18,12 +18,12 @@ from typing import Optional, Dict
 
 class RuleConfiguration:
 
-    def __init__(self, name, enabled, match_timeout, match_timeout_offset_ns, match_all=False, autoremove_timeout=None, configuration=None) -> None:
+    def __init__(self, name, enabled, match_timeout, match_timeout_offset_ns, match_all=None, autoremove_timeout=None, configuration=None) -> None:
         self.name = str(name)
         self.enabled = True if enabled.lower() == 'true' else False
         self.match_timeout = int(match_timeout)
         self.match_timeout_offset_ns = int(match_timeout_offset_ns)
-        self.match_all = eval(match_all.capitalize()) if isinstance(match_all, str) else match_all
+        self.match_all = True if match_all is not None and match_all.lower() == 'true' else False
         if autoremove_timeout is not None:
             try:
                 self.autoremove_timeout = int(autoremove_timeout)
