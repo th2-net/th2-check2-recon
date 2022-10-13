@@ -18,7 +18,14 @@ from typing import Optional, Dict
 
 class RuleConfiguration:
 
-    def __init__(self, name, enabled, match_timeout, match_timeout_offset_ns, match_all=None, autoremove_timeout=None, configuration=None) -> None:
+    def __init__(self,
+                 name,
+                 enabled,
+                 match_timeout,
+                 match_timeout_offset_ns,
+                 match_all=None,
+                 autoremove_timeout=None,
+                 configuration=None) -> None:
         self.name = str(name)
         self.enabled = True if enabled.lower() == 'true' else False
         self.match_timeout = int(match_timeout)
@@ -44,8 +51,13 @@ class CrawlerConnectionConfiguration:
 
 
 class ReconConfiguration:
-    def __init__(self, recon_name: str, cache_size: int, event_batch_max_size: int,
-                 event_batch_send_interval: int, rules_package_path: str, rules: list,
+    def __init__(self,
+                 recon_name: str,
+                 cache_size: int,
+                 event_batch_max_size: int,
+                 event_batch_send_interval: int,
+                 rules_package_path: str,
+                 rules: list,
                  crawler_connection_configuration: Optional[Dict[str, str]] = None,
                  configuration=None) -> None:
         self.recon_name = recon_name

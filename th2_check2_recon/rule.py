@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import datetime
 import functools
 import logging
 import traceback
 from abc import abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from prometheus_client import Histogram
 from th2_common.schema.metrics import common_metrics
@@ -26,8 +25,8 @@ from th2_grpc_common.common_pb2 import Event, EventID
 
 from th2_check2_recon.handler import MessageHandler, AbstractHandler
 from th2_check2_recon.recon import Recon
-from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp, MessageGroupType
-from th2_check2_recon.services import Cache, MessageComparator
+from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp, MessageGroupDescription
+from th2_check2_recon.services import Cache, MessageComparator, EventStore
 
 logger = logging.getLogger(__name__)
 
@@ -38,25 +37,24 @@ class Rule:
                  recon: Recon,
                  cache_size: int,
                  match_timeout: int,
+                 match_all: bool,
                  autoremove_timeout: Optional[int],
                  configuration,
-                 metric_number: int,
-                 match_all: bool) -> None:
-
+                 metric_number: int) -> None:
         self.recon = recon
         self.configure(configuration)
         self.name = self.get_name()
-        logger.info("Rule '%s' initializing...", self.name)
+        logger.info("Rule '%s' is initializing...", self.name)
 
-        self.event_store = recon.event_store
+        self.event_store: EventStore = recon.event_store
         self.message_comparator: Optional[MessageComparator] = recon.message_comparator
         self.match_timeout = match_timeout
         self.autoremove_timeout = autoremove_timeout
         self.match_all = match_all
 
-        self.reprocess_queue = list()
+        self.reprocess_queue = []
 
-        self.rule_event_id: EventID = self.event_store.create_and_send_rule_root_event(
+        self.rule_event_id: EventID = self.event_store.put_rule_event(
             rule_name=self.name,
             rule_description=self.get_description()
         )
@@ -68,7 +66,7 @@ class Rule:
             'Time of the message processing with a rule',
             buckets=common_metrics.DEFAULT_BUCKETS)
 
-        logger.info("Rule '%s' initialized", self.name)
+        logger.info("Rule '%s' was initialized", self.name)
 
     @abstractmethod
     def get_name(self) -> str:
@@ -79,32 +77,21 @@ class Rule:
         pass
 
     @abstractmethod
-    def get_attributes(self) -> [list]:
+    def get_attributes(self) -> List[List[str]]:
         pass
 
     @abstractmethod
-    def description_of_groups(self) -> dict:
+    def description_of_groups(self) -> Dict[str, MessageGroupDescription]:
         """
-            Returns a dictionary whose key is group_id and whose value is type or a set of type.
-            Type can be MessageGroupType.single or MessageGroupType.multi, or MessageGroupType.shared.
+            Returns a dictionary whose key is group_name and value is MessageGroupDescription.
+            MessageGroupDescription have boolean fields single, shared, shared and ignore_no_match.
         """
         pass
 
     @property
     def common_configuration(self):
-        """
-        Returns recon-level rule configuration if it was set, else - None.
-        """
+        """Returns recon-level rule configuration if it was set, else - None."""
         return self.recon._config.configuration
-
-    def description_of_groups_bridge(self) -> dict:
-        result = dict()
-        for key, value in self.description_of_groups().items():
-            if isinstance(value, set):
-                result[key] = value
-            else:
-                result[key] = {value}
-        return result
 
     @abstractmethod
     def group(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
@@ -124,18 +111,16 @@ class Rule:
     def get_listener(self) -> AbstractHandler:
         return MessageHandler(self)
 
-    def put_shared_message(self, shared_group_id: str, message: ReconMessage, attributes: tuple):
-        if shared_group_id in message.in_shared_groups:
-            return
-        new_message = copy.deepcopy(message)
-        new_message.group_id = shared_group_id
-        self.recon.put_shared_message(shared_group_id, new_message, attributes)
+    def put_shared_message(self, message: ReconMessage, attributes: tuple):
+        # message = copy.deepcopy(message)
+        self.recon.put_shared_message(message, attributes)
 
     def has_been_grouped(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
-        self.__group_and_store_event(message, attributes, *args, **kwargs)
-        if message.group_id is None:
-            logger.debug("RULE '%s': Ignored %s due to unset group_id", self.name, message.all_info)
-            return False
+        if message.group_name is None:
+            self.__group_and_store_event(message, attributes, *args, **kwargs)
+            if message.group_name is None:
+                logger.debug("RULE '%s': Ignored %s due to unset group_id", self.name, message.all_info)
+                return False
         return True
 
     def process(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
@@ -144,19 +129,16 @@ class Rule:
             logger.debug("RULE '%s': Ignored %s due to unset hash", self.name, message.all_info)
             return
 
-        if message.group_id not in self.__cache.message_groups:
-            raise Exception(F"'group' method set incorrect groups.\n"
-                            F" - message: {message.all_info}\n"
-                            F" - available groups: {self.description_of_groups_bridge()}\n"
-                            F" - message.group_id: {message.group_id}")
-        main_group = self.__cache.message_groups[message.group_id]
+        if message.group_name not in self.__cache.message_groups:
+            raise Exception(f"'group' method set incorrect groups.\n"
+                            f" - message: {message.all_info}\n"
+                            f" - available groups: {self.description_of_groups()}\n"
+                            f" - message.group_id: {message.group_name}")
+        main_group = self.__cache.message_groups[message.group_name]
         logger.debug("RULE '%s': Received %s", self.name, message.all_info)
 
         for match in self.find_matched_messages(message, match_whole_list=self.match_all):
-            if match is None:  # Will return None if some of the groups did not contain the message.
-                if MessageGroupType.shared in self.description_of_groups_bridge()[message.group_id] and \
-                        message.group_id not in message.in_shared_groups:
-                    message.in_shared_groups.add(message.group_id)
+            if match is None:  # Will return None if some groups did not contain the message.
                 main_group.put(message)
                 return
             else:
@@ -166,22 +148,22 @@ class Rule:
             main_group.put(message)
 
         for group_id, group in self.__cache.message_groups.items():
-            if group_id != message.group_id and group.is_cleanable:
+            if group_id != message.group_name and group.is_cleanable:
                 group.remove(message.hash)
 
         for message in self.reprocess_queue:
             self.process(message, attributes)
         self.reprocess_queue.clear()
 
-    def find_matched_messages(self, message, match_whole_list=False):
+    def find_matched_messages(self, message: ReconMessage, match_whole_list: bool = False):
 
-        if len(self.description_of_groups_bridge()) == 1:
+        if len(self.description_of_groups()) == 1:
             yield [message]
             return
 
-        matched_messages = list()
-        for group_id, group in self.__cache.message_groups.items():
-            if group_id == message.group_id:
+        matched_messages = []
+        for group_name, group in self.__cache.message_groups.items():
+            if group_name == message.group_name:
                 continue
             if message.hash not in group:
                 yield None
@@ -205,8 +187,8 @@ class Rule:
     def __group_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         try:
             self.group(message, attributes, *args, **kwargs)
-        except Exception:
-            logger.exception(f"RULE '{self.name}': An exception was caught while running 'group'")
+        except Exception as e:
+            logger.exception(f"RULE '{self.name}' - An exception was caught while running 'group': {e}")
             self.event_store.store_error(rule_event_id=self.rule_event_id,
                                          event_name="An exception was caught while running 'group'",
                                          error_message=traceback.format_exc(),
@@ -215,8 +197,8 @@ class Rule:
     def __hash_and_store_event(self, message: ReconMessage, attributes: tuple, *args, **kwargs):
         try:
             self.hash(message, attributes, *args, **kwargs)
-        except Exception:
-            logger.exception(f"RULE '{self.name}': An exception was caught while running 'hash'")
+        except Exception as e:
+            logger.exception(f"RULE '{self.name}' - An exception was caught while running 'hash': {e}")
             self.event_store.store_error(rule_event_id=self.rule_event_id,
                                          event_name="An exception was caught while running 'hash'",
                                          error_message=traceback.format_exc(),
@@ -224,11 +206,11 @@ class Rule:
 
     def __check_and_store_event(self, matched_messages: List[ReconMessage], attributes: tuple, *args, **kwargs):
         for msg in matched_messages:
-            msg.is_matched = True
+            msg._is_matched = True
         try:
             check_event: Event = self.check(matched_messages, attributes, *args, **kwargs)
-        except Exception:
-            logger.exception(f"RULE '{self.name}': An exception was caught while running 'check'")
+        except Exception as e:
+            logger.exception(f"RULE '{self.name}' - An exception was caught while running 'check': {e}")
             self.event_store.store_error(rule_event_id=self.rule_event_id,
                                          event_name="An exception was caught while running 'check'",
                                          error_message=traceback.format_exc(),
@@ -241,7 +223,7 @@ class Rule:
         max_timestamp_msg = max(matched_messages, key=_get_msg_timestamp)
         min_timestamp_msg = min(matched_messages, key=_get_msg_timestamp)
 
-        if max_timestamp_msg.timestamp - min_timestamp_msg.timestamp > self.match_timeout:
+        if max_timestamp_msg.timestamp_ns - min_timestamp_msg.timestamp_ns > self.match_timeout:
             self.event_store.store_matched_out_of_timeout(rule_event_id=self.rule_event_id,
                                                           check_event=check_event)
         else:
@@ -250,14 +232,16 @@ class Rule:
 
     def log_groups_size(self):
         return "[" + ', '.join(
-            f"'{group.id}': {group.size} msg" for group in self.__cache.message_groups.values()) + "]"
+            f"'{group.name}': {group.size} msg" for group in self.__cache.message_groups.values()) + "]"
 
     def cache_size(self):
         return sum(group.size for group in self.__cache.message_groups.values())
 
-    def check_no_match_within_timeout(self, actual_time: int):
+    def check_no_match_within_timeout(self, actual_timestamp: datetime.datetime, actual_timestamp_ns: int):
         for group in self.__cache.message_groups.values():
-            group.check_no_match_within_timeout(actual_time, self.match_timeout)
+            group.check_no_match_within_timeout(actual_timestamp=actual_timestamp,
+                                                actual_timestamp_ns=actual_timestamp_ns,
+                                                timeout=self.match_timeout)
 
     def clear_out_of_timeout(self, actual_timestamp: int):
         if self.autoremove_timeout is None:

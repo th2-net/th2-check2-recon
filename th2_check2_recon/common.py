@@ -52,9 +52,13 @@ class EventUtils:
         UNKNOWN = ''
 
     @staticmethod
-    def create_event(name: str, id: EventID = None, parent_id: EventID = None,
-                     status: EventStatus = EventStatus.SUCCESS, body: bytes = None,
-                     attached_message_ids: [MessageID] = None, type: EventType = EventType.UNKNOWN) -> Event:
+    def create_event(name: str,
+                     id: EventID = None,
+                     parent_id: EventID = None,
+                     status: EventStatus = EventStatus.SUCCESS,
+                     body: bytes = None,
+                     attached_message_ids: [MessageID] = None,
+                     type: EventType = EventType.UNKNOWN) -> Event:
         if id is None:
             id = EventUtils.new_event_id()
         if attached_message_ids is None:
@@ -74,6 +78,11 @@ class EventUtils:
 
 
 class MessageUtils:
+
+    @staticmethod
+    def get_timestamp(message: Dict[str, Any]) -> datetime:
+        timestamp = message['metadata']['timestamp']
+        return timestamp if timestamp is not None else 0
 
     @staticmethod
     def get_timestamp_ns(message: Dict[str, Any]) -> int:

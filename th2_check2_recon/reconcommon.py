@@ -12,33 +12,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from th2_check2_recon.common import MessageUtils
 
 
 class ReconMessage:
-    __slots__ = ("proto_message", "group_info", "group_id", "hash_info", "hash", "is_matched",
-                 "is_check_no_match_within_timeout", "_timestamp", "in_shared_groups", '_info')
+
+    __slots__ = ('proto_message', 'group_name', 'hash', 'group_info', 'hash_info', '_is_matched',
+                 '_shared', '_timestamp', '_timestamp_ns', '_info', '_was_checked_no_match_within_timeout')
 
     def __init__(self, proto_message: Dict[str, Any]) -> None:
         self.proto_message = proto_message
-        self.group_info = dict()
-        self.group_id = None
-        self.hash_info = dict()
+        self.group_name: Optional[str] = None
         self.hash = None
-        self.is_matched = False
-        self.is_check_no_match_within_timeout = False
-        self.in_shared_groups = set()
+
+        self.group_info = {}
+        self.hash_info = {}
+
+        self._is_matched: bool = False
+        self._shared: bool = False
         self._timestamp = None
+        self._timestamp_ns = None
         self._info = None
+        self._was_checked_no_match_within_timeout = False
 
     @property
     def timestamp(self):
         if self._timestamp is None:
-            self._timestamp = MessageUtils.get_timestamp_ns(self.proto_message)
+            self._timestamp = MessageUtils.get_timestamp(self.proto_message)
         return self._timestamp
+
+    @property
+    def timestamp_ns(self):
+        if self._timestamp_ns is None:
+            self._timestamp_ns = MessageUtils.get_timestamp_ns(self.proto_message)
+        return self._timestamp_ns
 
     @staticmethod
     def get_info(info_dict: dict) -> str:
@@ -54,8 +63,8 @@ class ReconMessage:
             result = self._info
         if self.hash is not None:
             result += f" Hash='{self.hash}'"
-        if self.group_id is not None:
-            result += f" Group='{self.group_id}'"
+        if self.group_name is not None:
+            result += f" Group='{self.group_name}'"
         if len(self.hash_info) > 0:
             result += f' Hash{self.get_info(self.hash_info)}'
         if len(self.group_info) > 0:
@@ -68,7 +77,42 @@ def _get_msg_timestamp(msg: ReconMessage):
     return msg.timestamp
 
 
-class MessageGroupType(Enum):
-    single = 1
-    multi = 2
-    shared = 3
+class MessageGroupDescription:
+
+    __slots__ = ('__single', '__multi', '__shared', '__ignore_no_match')
+
+    def __init__(self,
+                 single: bool = False,
+                 multi: bool = False,
+                 shared: bool = False,
+                 ignore_no_match: bool = False):
+        if single ^ multi:  # xor
+            self.__single = single
+            self.__multi = multi
+        else:
+            raise AttributeError('Group should be either single or multi')
+        self.__shared = shared
+        self.__ignore_no_match = ignore_no_match
+
+    def __eq__(self, other):
+        properties = {'single', 'multi', 'shared', 'ignore_no_match'}
+        return all(getattr(self, prop) == getattr(other, prop) for prop in properties)
+
+    def __hash__(self):
+        return hash((self.single, self.multi, self.shared, self.ignore_no_match))
+
+    @property
+    def single(self):
+        return self.__single
+
+    @property
+    def multi(self):
+        return self.__multi
+
+    @property
+    def shared(self):
+        return self.__shared
+
+    @property
+    def ignore_no_match(self):
+        return self.__ignore_no_match

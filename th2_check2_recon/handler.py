@@ -64,15 +64,17 @@ class MessageHandler(AbstractHandler):
                              MessageUtils.str_message_id(data))
 
             logger.debug("Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
-        except Exception:
+        except Exception as e:
             logger.exception(f'Rule: {self._rule.get_name()}. '
-                             f'An error occurred while processing the received message. '
+                             f'An error occurred while processing the received message: {e}\n'
                              f'Message: {MessageToString(batch, as_one_line=True)}')
 
 
 class GRPCHandler(DataProcessorServicer):
 
-    def __init__(self, rules: List, crawler_connection_configuration: CrawlerConnectionConfiguration,
+    def __init__(self,
+                 rules: List,
+                 crawler_connection_configuration: CrawlerConnectionConfiguration,
                  root_event_id: EventID) -> None:
         self._rules = rules
         self._crawler_connection_configuration = crawler_connection_configuration
@@ -104,12 +106,14 @@ class GRPCHandler(DataProcessorServicer):
                     start_time = time.time()
                     try:
                         rule.clear_out_of_timeout(message.timestamp)
-                        rule.check_no_match_within_timeout(message.timestamp)
+                        rule.check_no_match_within_timeout(actual_timestamp=message.timestamp,
+                                                           actual_timestamp_ns=message.timestamp_ns)
                         if rule.has_been_grouped(message, ()):
                             rule.process(message, ())
-                    except Exception:
+
+                    except Exception as e:
                         logger.exception(f'Rule: {rule.get_name()}. '
-                                         f'An error occurred while processing the message. '
+                                         f'An error occurred while processing the message: {e}\n'
                                          f'Message: {MessageToString(proto_message, as_one_line=True)}')
                     finally:
                         process_timer.observe(time.time() - start_time)
@@ -117,5 +121,5 @@ class GRPCHandler(DataProcessorServicer):
                              data['metadata']['message_type'], MessageUtils.str_message_id(data))
             return MessageResponse(ids=[msg.metadata.id for msg in messages], status=Status(handshake_required=False))
         except Exception as e:
-            logger.exception('SendMessage request failed')
+            logger.exception(f'SendMessage request failed: {e}')
             return MessageResponse(ids=[], status=Status(handshake_required=True))
