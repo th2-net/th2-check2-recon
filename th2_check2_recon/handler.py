@@ -53,7 +53,8 @@ class MessageHandler(AbstractHandler):
                 start_time = time.time()
 
                 self._rule.clear_out_of_timeout(message.timestamp)
-                self._rule.check_no_match_within_timeout(message.timestamp)
+                self._rule.check_no_match_within_timeout(actual_timestamp=message.timestamp,
+                                                         actual_timestamp_ns=message.timestamp_ns)
                 if self._rule.has_been_grouped(message, attributes):
                     self._rule.process(message, attributes)
 

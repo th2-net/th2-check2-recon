@@ -121,8 +121,9 @@ class Recon:
                 raise AttributeError('Group name should be set in ReconMessage before putting it in shared group')
             message_group = recon_message.group_name
             rule_groups: Dict[str, MessageGroupDescription] = rule.description_of_groups()
-            if message_group in rule_groups and rule_groups[message_group].shared:
-                recon_message._shared = True
-                rule.process(recon_message, attributes)
-            else:
-                raise AttributeError(f'Trying to put shared message in group that is not shared: {message_group}')
+            if message_group in rule_groups:
+                if rule_groups[message_group].shared:
+                    recon_message._shared = True
+                    rule.process(recon_message, attributes)
+                else:
+                    raise AttributeError(f'Trying to put shared message in group that is not shared: {message_group}')
