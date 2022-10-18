@@ -160,7 +160,7 @@ class EventStore(AbstractService):
 
     def put_shared_groups_root_event(self) -> EventID:
         shared_root_event_id: Event = EventUtils.create_event(parent_id=self.recon_event_id,
-                                                              name='Shared messages',
+                                                              name='Shared groups',
                                                               type=EventUtils.EventType.EVENT)
         self.event_sender.put_event_in_batch(event=shared_root_event_id)
         return shared_root_event_id.id
