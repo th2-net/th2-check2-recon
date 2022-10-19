@@ -17,7 +17,7 @@ import logging
 import uuid
 from datetime import datetime
 from json import JSONEncoder
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 from google.protobuf.timestamp_pb2 import Timestamp
 from th2_check2_recon.reconcommon import ReconMessage
@@ -103,7 +103,7 @@ class ReconMessageUtils:
     """Some service methods for work with recon specifically and it's rules"""
 
     @staticmethod
-    def get_value(message: ReconMessage, name: str, default: str = '') -> str:
+    def get_value(message: ReconMessage, name: str, default: Any = '') -> str:
         """return simple value of a given field if presented in the recon message."""
         return message.proto_message['fields'].get(name, default)
 
@@ -113,10 +113,17 @@ class ReconMessageUtils:
         return message.proto_message['fields'][name]
 
     @staticmethod
-    def get_inner_value(message: ReconMessage, *names: str, default: str = None) -> Any:
+    def get_inner_value(message: ReconMessage, *names: Union[str, int], default: Any = '') -> Any:
         value = message.proto_message['fields']
         for name in names:
-            value = value.get(name)
+            if isinstance(name, int):
+                if isinstance(value, list) and -len(value) <= name < len(value):
+                    value = value[name]
+                else:
+                    value = None
+            else:
+                value = value.get(name)
+
             if value is None:
                 return default
         return value
