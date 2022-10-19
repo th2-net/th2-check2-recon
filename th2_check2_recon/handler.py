@@ -63,8 +63,7 @@ class MessageHandler(AbstractHandler):
                 logger.debug("Processed '%s' id='%s'", data['metadata']['message_type'],
                              MessageUtils.str_message_id(data))
 
-            logger.debug("Cache size '%s': %s.", self._rule.get_name(),
-                         self._rule.log_groups_size())
+            logger.debug("Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
 
         except Exception as e:
             logger.exception(f'Rule: {self._rule.get_name()}. '

@@ -17,21 +17,4 @@ sortedcollections==2.1.0
 th2-grpc-util==3.0.4
 th2-common==3.9.0
 th2-grpc-crawler-data-processor==0.3.1
- flake8
-          flake8-bugbear
-          flake8-builtins
-          flake8-comprehensions
-          flake8-eradicate
-          flake8-fixme
-          flake8-multiline-containers
-          flake8-print
-          flake8-return
-          flake8-quotes
-          flake8-simplify
-          pep8-naming
-          flake8-expression-complexity
-          flake8-import-order
-          flake8-annotations-complexity
-          flake8-annotations-coverage
 
-mypy
