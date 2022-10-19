@@ -14,17 +14,17 @@
 
 import importlib
 import logging
-from typing import Optional, Dict
+from typing import Dict, List, Optional
 
 from grpc import Server
+from th2_check2_recon.configuration import ReconConfiguration
+from th2_check2_recon.handler import GRPCHandler
+from th2_check2_recon.reconcommon import MessageGroupDescription, ReconMessage
+from th2_check2_recon.rule import Rule
+from th2_check2_recon.services import Cache, EventStore, MessageComparator
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_common.schema.message.message_router import MessageRouter
 from th2_grpc_crawler_data_processor import crawler_data_processor_pb2_grpc
-
-from th2_check2_recon.configuration import ReconConfiguration
-from th2_check2_recon.handler import GRPCHandler
-from th2_check2_recon.reconcommon import ReconMessage, MessageGroupDescription
-from th2_check2_recon.services import EventStore, MessageComparator, Cache
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +37,11 @@ class Recon:
                  custom_config: dict,
                  message_comparator: Optional[MessageComparator] = None,
                  grpc_server: Optional[Server] = None) -> None:
+
         logger.info('Recon initializing...')
-        self.rules = []
+        self.rules: List[Rule] = []
         self._config = ReconConfiguration(**custom_config)
-        self.__message_router = message_router
+        self.__message_router: MessageRouter = message_router
         self.event_store = EventStore(event_router=event_router,
                                       recon_name=self._config.recon_name,
                                       event_batch_max_size=self._config.event_batch_max_size,
@@ -49,7 +50,7 @@ class Recon:
         self.grpc_server: Optional[Server] = grpc_server
         self.shared_message_groups: Dict[str, Cache.MessageGroup] = {}
 
-    def start(self):
+    def start(self) -> None:
         try:
             logger.info('Recon is starting...')
             self.rules = self.__load_rules()
@@ -70,7 +71,7 @@ class Recon:
             logger.exception('Recon work interrupted')
             raise
 
-    def stop(self):
+    def stop(self) -> None:
         logger.info('Recon is trying to stop')
         try:
             self.__message_router.unsubscribe_all()
@@ -84,7 +85,7 @@ class Recon:
         finally:
             logger.info('Recon was stopped!')
 
-    def __load_rules(self):
+    def __load_rules(self) -> List[Rule]:
         logger.info('Try to load rules')
         rules_package = importlib.import_module(self._config.rules_package_path)
         loaded_rules = []
@@ -102,20 +103,19 @@ class Recon:
         logger.info('Rules were loaded')
         return loaded_rules
 
-    def __check_shared_message_groups(self):
+    def __check_shared_message_groups(self) -> None:
         shared_group_descriptions_by_group_name: Dict[str, MessageGroupDescription] = {}
 
         for rule in self.rules:
             for group_name, group_description in rule.description_of_groups().items():
                 if group_description.shared:
-                    if group_name in shared_group_descriptions_by_group_name:
-                        if shared_group_descriptions_by_group_name[group_name] != group_description:
-                            raise AttributeError(f"Shared group '{group_name}' should have the same "
-                                                 f"attributes in all rules")
-                    else:
+                    if group_name not in shared_group_descriptions_by_group_name:
                         shared_group_descriptions_by_group_name[group_name] = group_description
+                    elif shared_group_descriptions_by_group_name[group_name] != group_description:
+                        raise AttributeError(f'Shared group "{group_name}" should have the same '
+                                             f'attributes in all rules')
 
-    def put_shared_message(self, recon_message: ReconMessage, attributes: tuple):
+    def put_shared_message(self, recon_message: ReconMessage, attributes: tuple) -> None:
         for rule in self.rules:
             if recon_message.group_name is None:
                 raise AttributeError('Group name should be set in ReconMessage before putting it in shared group')
@@ -126,4 +126,6 @@ class Recon:
                     recon_message._shared = True
                     rule.process(recon_message, attributes)
                 else:
-                    raise AttributeError(f'Trying to put shared message in group that is not shared: {message_group}')
+                    raise AttributeError(
+                        f'Trying to put shared message in group that '
+                        f'is not shared: {message_group}')

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 from th2_check2_recon.common import MessageUtils
@@ -19,32 +19,36 @@ from th2_check2_recon.common import MessageUtils
 
 class ReconMessage:
 
-    __slots__ = ('proto_message', 'group_name', 'hash', 'group_info', 'hash_info', '_is_matched',
-                 '_shared', '_timestamp', '_timestamp_ns', '_info', '_was_checked_no_match_within_timeout')
+    __slots__ = (
+        'proto_message', 'group_name', 'hash', 'group_info', 'hash_info',
+        '_is_matched', '_shared', '_timestamp', '_timestamp_ns', '_info',
+        '_was_checked_no_match_within_timeout'
+    )
 
     def __init__(self, proto_message: Dict[str, Any]) -> None:
+
         self.proto_message = proto_message
         self.group_name: Optional[str] = None
         self.hash = None
 
-        self.group_info = {}
-        self.hash_info = {}
+        self.group_info: dict = {}
+        self.hash_info: dict = {}
 
         self._is_matched: bool = False
         self._shared: bool = False
-        self._timestamp = None
-        self._timestamp_ns = None
-        self._info = None
-        self._was_checked_no_match_within_timeout = False
+        self._timestamp: Optional[datetime] = None
+        self._timestamp_ns: Optional[int] = None
+        self._info: Optional[str] = None
+        self._was_checked_no_match_within_timeout: bool = False
 
     @property
-    def timestamp(self):
+    def timestamp(self) -> datetime:
         if self._timestamp is None:
             self._timestamp = MessageUtils.get_timestamp(self.proto_message)
         return self._timestamp
 
     @property
-    def timestamp_ns(self):
+    def timestamp_ns(self) -> int:
         if self._timestamp_ns is None:
             self._timestamp_ns = MessageUtils.get_timestamp_ns(self.proto_message)
         return self._timestamp_ns
@@ -56,8 +60,8 @@ class ReconMessage:
     @property
     def all_info(self) -> str:
         if self._info is None:
-            result = f"'{self.proto_message['metadata']['message_type']}" \
-                     f"' id='{MessageUtils.str_message_id(self.proto_message)}'"
+            result = f"'{self.proto_message['metadata']['message_type']} " \
+                     f"'id='{MessageUtils.str_message_id(self.proto_message)}'"
             self._info = result
         else:
             result = self._info
@@ -72,7 +76,7 @@ class ReconMessage:
         return result
 
 
-def _get_msg_timestamp(msg: ReconMessage):
+def _get_msg_timestamp(msg: ReconMessage) -> datetime:
     """Used instead of lambda in Rule.__check_and_store_event"""
     return msg.timestamp
 
@@ -86,6 +90,7 @@ class MessageGroupDescription:
                  multi: bool = False,
                  shared: bool = False,
                  ignore_no_match: bool = False):
+
         if single ^ multi:  # xor
             self.__single = single
             self.__multi = multi
@@ -94,25 +99,31 @@ class MessageGroupDescription:
         self.__shared = shared
         self.__ignore_no_match = ignore_no_match
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         properties = {'single', 'multi', 'shared', 'ignore_no_match'}
-        return all(getattr(self, prop) == getattr(other, prop) for prop in properties)
+        if not isinstance(other, MessageGroupDescription):
+            return NotImplemented
+        return all(getattr(self, prop) == getattr(other, prop)
+                   for prop in properties)
 
-    def __hash__(self):
-        return hash((self.single, self.multi, self.shared, self.ignore_no_match))
+    def __hash__(self) -> int:
+        return hash((
+            self.single, self.multi,
+            self.shared, self.ignore_no_match
+        ))
 
     @property
-    def single(self):
+    def single(self) -> bool:
         return self.__single
 
     @property
-    def multi(self):
+    def multi(self) -> bool:
         return self.__multi
 
     @property
-    def shared(self):
+    def shared(self) -> bool:
         return self.__shared
 
     @property
-    def ignore_no_match(self):
+    def ignore_no_match(self) -> bool:
         return self.__ignore_no_match

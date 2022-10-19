@@ -13,31 +13,34 @@
 # limitations under the License.
 
 import datetime
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 
 class RuleConfiguration:
 
     def __init__(self,
-                 name,
-                 enabled,
-                 match_timeout,
-                 match_timeout_offset_ns,
-                 match_all=None,
-                 autoremove_timeout=None,
-                 configuration=None) -> None:
+                 name: str,
+                 enabled: str,
+                 match_timeout: str,
+                 match_timeout_offset_ns: str,
+                 match_all: Optional[str] = None,
+                 autoremove_timeout: Optional[str] = None,
+                 configuration: Optional[str] = None) -> None:
+
         self.name = str(name)
-        self.enabled = True if enabled.lower() == 'true' else False
+        self.enabled = enabled.lower() == 'true'
         self.match_timeout = int(match_timeout)
         self.match_timeout_offset_ns = int(match_timeout_offset_ns)
-        self.match_all = True if match_all is not None and match_all.lower() == 'true' else False
+        self.match_all = bool(match_all is not None and match_all.lower() == 'true')
+        datetime_object = False
         if autoremove_timeout is not None:
             try:
-                self.autoremove_timeout = int(autoremove_timeout)
+                timeout_int = int(autoremove_timeout)
             except ValueError:
-                self.autoremove_timeout = datetime.datetime.strptime(autoremove_timeout, '%H:%M')
-                self.autoremove_timeout = self.autoremove_timeout.combine(datetime.datetime.now().date(),
-                                                                          self.autoremove_timeout.time())
+                timeout = datetime.datetime.strptime(autoremove_timeout, '%H:%M')
+                timeout_datetime = timeout.combine(datetime.datetime.now().date(), timeout.time())
+                datetime_object = True
+            self.autoremove_timeout = timeout_int if not datetime_object else timeout_datetime
         else:
             self.autoremove_timeout = None
         self.configuration = configuration
@@ -46,6 +49,7 @@ class RuleConfiguration:
 class CrawlerConnectionConfiguration:
 
     def __init__(self, name: str = 'Recon Data Processor', version: str = '1.0.0') -> None:
+
         self.name = name
         self.version = version
 
@@ -59,7 +63,8 @@ class ReconConfiguration:
                  rules_package_path: str,
                  rules: list,
                  crawler_connection_configuration: Optional[Dict[str, str]] = None,
-                 configuration=None) -> None:
+                 configuration: Optional[str] = None) -> None:
+
         self.recon_name = recon_name
         self.cache_size = int(cache_size)
         self.event_batch_max_size = int(event_batch_max_size)

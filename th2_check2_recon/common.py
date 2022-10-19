@@ -12,70 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
 import enum
 import logging
-import uuid
-from datetime import datetime
-from json import JSONEncoder
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Union
 
-from google.protobuf.timestamp_pb2 import Timestamp
 from th2_check2_recon.reconcommon import ReconMessage
-from th2_grpc_common.common_pb2 import Event, ConnectionID, Direction
-from th2_grpc_common.common_pb2 import EventStatus, EventID, MessageID, FilterOperation
-from th2_grpc_util.util_pb2 import ComparisonEntryStatus, ComparisonEntry, ComparisonEntryType
+from th2_grpc_common.common_pb2 import ConnectionID, Direction, EventStatus, FilterOperation, MessageID
+from th2_grpc_util.util_pb2 import ComparisonEntry, ComparisonEntryStatus, ComparisonEntryType
 
 logger = logging.getLogger(__name__)
 
 
-class EventUtils:
-    class __ComponentEncoder(JSONEncoder):
-        def default(self, o):
-            return o.__dict__
-
-    @staticmethod
-    def create_event_body(component) -> bytes:
-        return EventUtils.component_encoder().encode(component).encode()
-
-    @staticmethod
-    def component_encoder() -> __ComponentEncoder:
-        return EventUtils.__ComponentEncoder()
-
-    @staticmethod
-    def new_event_id():
-        return EventID(id=str(uuid.uuid1()))
-
-    class EventType(enum.Enum):
-        ROOT = 'ReconRoot'
-        RULE = 'ReconRule'
-        STATUS = 'ReconStatus'
-        EVENT = 'ReconEvent'
-        UNKNOWN = ''
-
-    @staticmethod
-    def create_event(name: str,
-                     id: EventID = None,
-                     parent_id: EventID = None,
-                     status: EventStatus = EventStatus.SUCCESS,
-                     body: bytes = None,
-                     attached_message_ids: [MessageID] = None,
-                     type: EventType = EventType.UNKNOWN) -> Event:
-        if id is None:
-            id = EventUtils.new_event_id()
-        if attached_message_ids is None:
-            attached_message_ids = []
-        start_time = datetime.now()
-        seconds = int(start_time.timestamp())
-        nanos = int(start_time.microsecond * 1000)
-        return Event(id=id,
-                     parent_id=parent_id,
-                     start_timestamp=Timestamp(seconds=seconds, nanos=nanos),
-                     end_timestamp=Timestamp(seconds=seconds, nanos=nanos),
-                     status=status,
-                     name=name,
-                     body=body,
-                     type=type.value,
-                     attached_message_ids=attached_message_ids)
+class EventType(enum.Enum):
+    ROOT = 'ReconRoot'
+    RULE = 'ReconRule'
+    STATUS = 'ReconStatus'
+    EVENT = 'ReconEvent'
+    UNKNOWN = ''
 
 
 class MessageUtils:
@@ -83,7 +37,7 @@ class MessageUtils:
     @staticmethod
     def get_timestamp(message: Dict[str, Any]) -> datetime:
         timestamp = message['metadata']['timestamp']
-        return timestamp if timestamp is not None else 0
+        return timestamp if timestamp is not None else 0  # type: ignore
 
     @staticmethod
     def get_timestamp_ns(message: Dict[str, Any]) -> int:
@@ -92,7 +46,7 @@ class MessageUtils:
 
     @staticmethod
     def str_message_id(message: Dict[str, Any]) -> str:
-        res = ""
+        res = ''
         params = message['metadata']['session_alias'], message['metadata']['direction'], message['metadata']['sequence']
         for param in params:
             res += str(param) + ':' if param else 'None: '
@@ -105,12 +59,12 @@ class ReconMessageUtils:
     @staticmethod
     def get_value(message: ReconMessage, name: str, default: Any = '') -> str:
         """return simple value of a given field if presented in the recon message."""
-        return message.proto_message['fields'].get(name, default)
+        return message.proto_message['fields'].get(name, default)  # type: ignore
 
     @staticmethod
     def get_required_value(message: ReconMessage, name: str) -> str:
         """return simple value of a given field."""
-        return message.proto_message['fields'][name]
+        return str(message.proto_message['fields'][name])  # type: ignore
 
     @staticmethod
     def get_inner_value(message: ReconMessage, *names: Union[str, int], default: Any = '') -> Any:
@@ -130,11 +84,11 @@ class ReconMessageUtils:
 
     @staticmethod
     def get_message_type(message: ReconMessage) -> str:
-        return message.proto_message['metadata']['message_type']
+        return message.proto_message['metadata']['message_type']  # type: ignore
 
     @staticmethod
     def get_session_alias(message: ReconMessage) -> str:
-        return message.proto_message['metadata']['session_alias']
+        return message.proto_message['metadata']['session_alias']  # type: ignore
 
     @staticmethod
     def get_message_id(message: ReconMessage) -> str:
@@ -142,7 +96,7 @@ class ReconMessageUtils:
                                                     session_group=message.proto_message['metadata']['session_group']),
                          direction=getattr(Direction, message.proto_message['metadata']['direction']),
                          sequence=message.proto_message['metadata']['sequence'],
-                         subsequence=message.proto_message['metadata']['subsequence'])
+                         subsequence=message.proto_message['metadata']['subsequence'])  # type: ignore
 
     @staticmethod
     def equal_values_check(message1: ReconMessage, message2: ReconMessage, tag: str) -> bool:
@@ -196,7 +150,7 @@ class ReconMessageUtils:
 class ComparatorUtils:
 
     @staticmethod
-    def __get_result_count(comparison_result, status) -> int:
+    def __get_result_count(comparison_result: ComparisonEntry, status: ComparisonEntryStatus) -> int:
         count = sum(ComparatorUtils.__get_result_count(sub_result, status)
                     for sub_result in comparison_result.fields.values())
         if status == comparison_result.status:
@@ -205,18 +159,20 @@ class ComparatorUtils:
         return count
 
     @staticmethod
-    def __get_status_type_by_val(failed, passed) -> ComparisonEntryStatus:
+    def __get_status_type_by_val(failed: int, passed: int) -> ComparisonEntryStatus:
         if failed != 0:
-            return ComparisonEntryStatus.FAILED
+            return ComparisonEntryStatus.FAILED  # type: ignore
         else:
             if passed != 0:
-                return ComparisonEntryStatus.PASSED
-        return ComparisonEntryStatus.NA
+                return ComparisonEntryStatus.PASSED  # type: ignore
+        return ComparisonEntryStatus.NA  # type: ignore
 
     @staticmethod
     def get_status_type(comparison_result: ComparisonEntry) -> ComparisonEntryStatus:
-        failed = ComparatorUtils.__get_result_count(comparison_result, ComparisonEntryStatus.FAILED)
-        passed = ComparatorUtils.__get_result_count(comparison_result, ComparisonEntryStatus.PASSED)
+        failed = ComparatorUtils.__get_result_count(
+            comparison_result, ComparisonEntryStatus.FAILED)  # type: ignore
+        passed = ComparatorUtils.__get_result_count(
+            comparison_result, ComparisonEntryStatus.PASSED)  # type: ignore
         return ComparatorUtils.__get_status_type_by_val(failed, passed)
 
 
@@ -230,33 +186,40 @@ class MessageComponent:
 class TableComponent:
 
     def __init__(self, column_names: list) -> None:
+
         self.type = 'table'
-        self.rows = []
+        self.rows: List[dict] = []
         self.__column_names = column_names
 
-    def add_row(self, *values):
-        self.rows.append({column_name: value for column_name, value in zip(self.__column_names, values)})
+    def add_row(self, *values: Any) -> None:
+        self.rows.append({
+            column_name: value for column_name, value
+            in zip(self.__column_names, values)
+        })
 
 
 class VerificationComponent:
 
     def __init__(self, comparison_entry: ComparisonEntry) -> None:
         self.type = 'verification'
-        self.fields = {field_name: VerificationComponent.VerificationEntry(entry)
-                       for field_name, entry in comparison_entry.fields.items()}
-        self.status = EventStatus.FAILED if ComparatorUtils.get_status_type(
-            comparison_entry) == ComparisonEntryStatus.FAILED else EventStatus.SUCCESS
+        self.fields = {
+                field_name: VerificationComponent.VerificationEntry(entry)
+                for field_name, entry in comparison_entry.fields.items()
+        }
+        self.status = EventStatus.FAILED if ComparatorUtils.get_status_type(comparison_entry) == \
+          ComparisonEntryStatus.FAILED else EventStatus.SUCCESS
 
     class VerificationEntry:
 
         def __init__(self, comparison_entry: ComparisonEntry) -> None:
+
             self.type = ComparisonEntryType.Name(comparison_entry.type).lower()
             self.status = ComparisonEntryStatus.Name(comparison_entry.status)
             self.expected = comparison_entry.first
             self.actual = comparison_entry.second
             self.key = comparison_entry.is_key
             self.operation = FilterOperation.Name(comparison_entry.operation)
-            self.fields = dict()
+            self.fields = {}
 
             if comparison_entry.type == ComparisonEntryType.COLLECTION:
                 for field_name, entry in comparison_entry.fields.items():
