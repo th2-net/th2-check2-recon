@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
+import datetime
 import enum
 import logging
 from typing import Any, Dict, List, Union
@@ -35,9 +35,9 @@ class EventType(enum.Enum):
 class MessageUtils:
 
     @staticmethod
-    def get_timestamp(message: Dict[str, Any]) -> datetime:
-        timestamp = message['metadata']['timestamp']
-        return timestamp if timestamp is not None else 0  # type: ignore
+    def get_timestamp(message: Dict[str, Any]) -> datetime.datetime:
+        timestamp: datetime.datetime = message['metadata']['timestamp']
+        return timestamp if timestamp is not None else datetime.datetime.min
 
     @staticmethod
     def get_timestamp_ns(message: Dict[str, Any]) -> int:
