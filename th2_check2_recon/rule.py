@@ -41,11 +41,10 @@ class Rule:
                  autoremove_timeout: Optional[int],
                  configuration: str,
                  metric_number: int) -> None:
-
         self.recon = recon
         self.configure(configuration)
         self.name = self.get_name()
-        logger.info("Rule '%s' is initializing...", self.name)
+        logger.info(f"Rule '{self.name}' is initializing...")
 
         self.event_store: EventStore = recon.event_store
         self.message_comparator: Optional[MessageComparator] = recon.message_comparator
@@ -64,7 +63,7 @@ class Rule:
                                               'Time of the message processing with a rule',
                                               buckets=common_metrics.DEFAULT_BUCKETS)
 
-        logger.info("Rule '%s' was initialized", self.name)
+        logger.info(f"Rule '{self.name}' was initialized")
 
     @abstractmethod
     def get_name(self) -> str:
@@ -120,15 +119,14 @@ class Rule:
         if message.group_name is None:
             self.__group_and_store_event(message, attributes, *args, **kwargs)
             if message.group_name is None:
-                logger.debug("RULE '%s': Ignored %s due to unset group_id",
-                             self.name, message.all_info)
+                logger.debug("RULE '%s': Ignored %s due to unset group_id" % (self.name, message.all_info))
                 return False
         return True
 
     def process(self, message: ReconMessage, attributes: tuple, *args: Any, **kwargs: Any) -> None:
         self.__hash_and_store_event(message, attributes, *args, **kwargs)
         if message.hash is None:
-            logger.debug("RULE '%s': Ignored %s due to unset hash", self.name, message.all_info)
+            logger.debug("RULE '%s': Ignored %s due to unset hash" % (self.name, message.all_info))
             return
 
         if message.group_name not in self.__cache.message_groups:
@@ -136,10 +134,9 @@ class Rule:
                             f' - available groups: {self.description_of_groups()}\n'
                             f' - message.group_id: {message.group_name}')
         main_group = self.__cache.message_groups[message.group_name]
-        logger.debug("RULE '%s': Received %s", self.name, message.all_info)
+        logger.debug("RULE '%s': Received %s" % (self.name, message.all_info))
 
         for match in self.find_matched_messages(message, match_whole_list=self.match_all):
-
             # Will return None if some groups did not contain the message.
             if match is None:
                 main_group.put(message)
@@ -160,7 +157,6 @@ class Rule:
 
     def find_matched_messages(self, message: ReconMessage,
                               match_whole_list: bool = False) -> Generator[Optional[list], ReconMessage, None]:
-
         if len(self.description_of_groups()) == 1:
             yield [message]
             return

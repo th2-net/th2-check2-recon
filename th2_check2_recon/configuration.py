@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 
 class RuleConfiguration:
@@ -26,21 +26,19 @@ class RuleConfiguration:
                  match_all: Optional[str] = None,
                  autoremove_timeout: Optional[str] = None,
                  configuration: Optional[str] = None) -> None:
-
         self.name = str(name)
         self.enabled = enabled.lower() == 'true'
         self.match_timeout = int(match_timeout)
         self.match_timeout_offset_ns = int(match_timeout_offset_ns)
-        self.match_all = bool(match_all is not None and match_all.lower() == 'true')
-        datetime_object = False
+        self.match_all = match_all is not None and match_all.lower() == 'true'
+        self.autoremove_timeout: Optional[Union[int, datetime.datetime]]
         if autoremove_timeout is not None:
             try:
                 timeout_int = int(autoremove_timeout)
+                self.autoremove_timeout = timeout_int
             except ValueError:
                 timeout = datetime.datetime.strptime(autoremove_timeout, '%H:%M')
-                timeout_datetime = timeout.combine(datetime.datetime.now().date(), timeout.time())
-                datetime_object = True
-            self.autoremove_timeout = timeout_int if not datetime_object else timeout_datetime
+                self.autoremove_timeout = timeout.combine(datetime.datetime.now().date(), timeout.time())
         else:
             self.autoremove_timeout = None
         self.configuration = configuration
@@ -49,7 +47,6 @@ class RuleConfiguration:
 class CrawlerConnectionConfiguration:
 
     def __init__(self, name: str = 'Recon Data Processor', version: str = '1.0.0') -> None:
-
         self.name = name
         self.version = version
 
@@ -64,7 +61,6 @@ class ReconConfiguration:
                  rules: list,
                  crawler_connection_configuration: Optional[Dict[str, str]] = None,
                  configuration: Optional[str] = None) -> None:
-
         self.recon_name = recon_name
         self.cache_size = int(cache_size)
         self.event_batch_max_size = int(event_batch_max_size)

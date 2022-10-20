@@ -24,7 +24,7 @@ from th2_grpc_util.util_pb2 import ComparisonEntry, ComparisonEntryStatus, Compa
 logger = logging.getLogger(__name__)
 
 
-class EventType(enum.Enum):
+class EventType(str, enum.Enum):
     ROOT = 'ReconRoot'
     RULE = 'ReconRule'
     STATUS = 'ReconStatus'
@@ -57,14 +57,14 @@ class ReconMessageUtils:
     """Some service methods for work with recon specifically and it's rules"""
 
     @staticmethod
-    def get_value(message: ReconMessage, name: str, default: Any = '') -> str:
+    def get_value(message: ReconMessage, name: str, default: Any = '') -> Any:
         """return simple value of a given field if presented in the recon message."""
-        return message.proto_message['fields'].get(name, default)  # type: ignore
+        return message.proto_message['fields'].get(name, default)
 
     @staticmethod
-    def get_required_value(message: ReconMessage, name: str) -> str:
+    def get_required_value(message: ReconMessage, name: str) -> Any:
         """return simple value of a given field."""
-        return str(message.proto_message['fields'][name])  # type: ignore
+        return message.proto_message['fields'][name]
 
     @staticmethod
     def get_inner_value(message: ReconMessage, *names: Union[str, int], default: Any = '') -> Any:
@@ -91,23 +91,25 @@ class ReconMessageUtils:
         return message.proto_message['metadata']['session_alias']  # type: ignore
 
     @staticmethod
-    def get_message_id(message: ReconMessage) -> str:
+    def get_message_id(message: ReconMessage) -> MessageID:
         return MessageID(connection_id=ConnectionID(session_alias=message.proto_message['metadata']['session_alias'],
                                                     session_group=message.proto_message['metadata']['session_group']),
                          direction=getattr(Direction, message.proto_message['metadata']['direction']),
                          sequence=message.proto_message['metadata']['sequence'],
-                         subsequence=message.proto_message['metadata']['subsequence'])  # type: ignore
+                         subsequence=message.proto_message['metadata']['subsequence'])
 
     @staticmethod
     def equal_values_check(message1: ReconMessage, message2: ReconMessage, tag: str) -> bool:
         """check that tag values are equal for both messages"""
-        return ReconMessageUtils.get_value(message1, tag) == ReconMessageUtils.get_value(message2, tag)
+        return ReconMessageUtils.get_value(message1, tag) == ReconMessageUtils.get_value(message2, tag)  # type: ignore
 
     @staticmethod
     def equal_if_not_empty_values_check(message1: ReconMessage, message2: ReconMessage, tag: str) -> bool:
         """check that tag values are equal (if they are not empty) for both messages"""
-        if ReconMessageUtils.get_value(message1, tag) != '' and ReconMessageUtils.get_value(message2, tag) != '':
-            return ReconMessageUtils.get_value(message1, tag) == ReconMessageUtils.get_value(message2, tag)
+        value1 = ReconMessageUtils.get_value(message1, tag)
+        value2 = ReconMessageUtils.get_value(message2, tag)
+        if value1 != '' and value2 != '':
+            return value1 == value2  # type: ignore
         return True
 
     @staticmethod
@@ -186,7 +188,6 @@ class MessageComponent:
 class TableComponent:
 
     def __init__(self, column_names: list) -> None:
-
         self.type = 'table'
         self.rows: List[dict] = []
         self.__column_names = column_names
@@ -203,16 +204,16 @@ class VerificationComponent:
     def __init__(self, comparison_entry: ComparisonEntry) -> None:
         self.type = 'verification'
         self.fields = {
-                field_name: VerificationComponent.VerificationEntry(entry)
-                for field_name, entry in comparison_entry.fields.items()
+            field_name: VerificationComponent.VerificationEntry(entry)
+            for field_name, entry in comparison_entry.fields.items()
         }
-        self.status = EventStatus.FAILED if ComparatorUtils.get_status_type(comparison_entry) == \
-          ComparisonEntryStatus.FAILED else EventStatus.SUCCESS
+        self.status = EventStatus.FAILED \
+            if ComparatorUtils.get_status_type(comparison_entry) == ComparisonEntryStatus.FAILED \
+            else EventStatus.SUCCESS
 
     class VerificationEntry:
 
         def __init__(self, comparison_entry: ComparisonEntry) -> None:
-
             self.type = ComparisonEntryType.Name(comparison_entry.type).lower()
             self.status = ComparisonEntryStatus.Name(comparison_entry.status)
             self.expected = comparison_entry.first

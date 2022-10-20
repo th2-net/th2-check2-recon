@@ -37,7 +37,6 @@ class Recon:
                  custom_config: dict,
                  message_comparator: Optional[MessageComparator] = None,
                  grpc_server: Optional[Server] = None) -> None:
-
         logger.info('Recon initializing...')
         self.rules: List[Rule] = []
         self._config = ReconConfiguration(**custom_config)

@@ -15,10 +15,10 @@
 from abc import ABC, abstractmethod
 import logging
 import time
-from typing import Any, List
+from typing import Any
 
 from google.protobuf.empty_pb2 import Empty
-from google.protobuf.text_format import MessageToString as toString
+from google.protobuf.text_format import MessageToString
 from th2_check2_recon.common import MessageUtils
 from th2_check2_recon.configuration import CrawlerConnectionConfiguration
 from th2_check2_recon.reconcommon import ReconMessage
@@ -60,45 +60,45 @@ class MessageHandler(AbstractHandler):
 
                 process_timer.observe(time.time() - start_time)
 
-                logger.debug("Processed '%s' id='%s'", data['metadata']['message_type'],
-                             MessageUtils.str_message_id(data))
+                logger.debug("Processed '%s' id='%s'" %
+                             (data['metadata']['message_type'], MessageUtils.str_message_id(data)))
 
-            logger.debug("Cache size '%s': %s.", self._rule.get_name(), self._rule.log_groups_size())
+            logger.debug("Cache size '%s': %s." % (self._rule.get_name(), self._rule.log_groups_size()))
 
         except Exception as e:
             logger.exception(f'Rule: {self._rule.get_name()}. '
                              f'An error occurred while processing the received message: {e}\n'
-                             f'Message: {toString(batch, as_one_line=True)}')
+                             f'Message: {MessageToString(batch, as_one_line=True)}')
 
 
 class GRPCHandler(DataProcessorServicer):
 
     def __init__(self,
-                 rules: List,
+                 rules: list,
                  crawler_connection_configuration:
                  CrawlerConnectionConfiguration,
                  root_event_id: EventID) -> None:
-
         self._rules: list = rules
         self._crawler_connection_configuration = crawler_connection_configuration
         self._recon_root_event_id: EventID = root_event_id
 
     def CrawlerConnect(self, request: Any, context: Any) -> DataProcessorInfo:
-        logger.debug('CrawlerId %s connected', request.id.name)
+        logger.debug('CrawlerId %s connected' % request.id.name)
         return DataProcessorInfo(name=self._crawler_connection_configuration.name,
                                  version=self._crawler_connection_configuration.version)
 
     def IntervalStart(self, request: Any, context: Any) -> Empty:
-        logger.debug('Interval set from %s to %s', request.start_time, request.end_time)
+        logger.debug('Interval set from %s to %s' % (request.start_time, request.end_time))
         return Empty()
 
     def SendEvent(self, request: Any, context: Any) -> EventResponse:
-        logger.debug('CrawlerID %s sent events %s', request.id.name, toString(request.event_data, as_one_line=True))
+        logger.debug('CrawlerID %s sent events %s' %
+                     (request.id.name, MessageToString(request.event_data, as_one_line=True)))
         return EventResponse(id=self._recon_root_event_id, status=Status(handshake_required=False))
 
     def SendMessage(self, request: Any, context: Any) -> MessageResponse:
         try:
-            logger.debug('CrawlerID %s sent %s messages', request.id.name, len(request.message_data))
+            logger.debug('CrawlerID %s sent %s messages' % (request.id.name, len(request.message_data)))
             messages = [data.message for data in request.message_data]
             for proto_message in messages:
                 data = message_to_dict(proto_message)
@@ -117,11 +117,11 @@ class GRPCHandler(DataProcessorServicer):
                         logger.exception(
                             f'Rule: {rule.get_name()}. '
                             f'An error occurred while processing the message: {e}\n'
-                            f'Message: {toString(proto_message, as_one_line=True)}')
+                            f'Message: {MessageToString(proto_message, as_one_line=True)}')
                     finally:
                         process_timer.observe(time.time() - start_time)
-                logger.debug("Processed '%s' id='%s'", data['metadata']['message_type'],
-                             MessageUtils.str_message_id(data))
+                logger.debug("Processed '%s' id='%s'"
+                             % (data['metadata']['message_type'], MessageUtils.str_message_id(data)))
             return MessageResponse(ids=[msg.metadata.id for msg in messages], status=Status(handshake_required=False))
         except Exception as e:
             logger.exception(f'SendMessage request failed: {e}')

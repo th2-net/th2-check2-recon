@@ -26,7 +26,6 @@ class ReconMessage:
     )
 
     def __init__(self, proto_message: Dict[str, Any]) -> None:
-
         self.proto_message = proto_message
         self.group_name: Optional[str] = None
         self.hash = None
@@ -90,7 +89,6 @@ class MessageGroupDescription:
                  multi: bool = False,
                  shared: bool = False,
                  ignore_no_match: bool = False):
-
         if single ^ multi:  # xor
             self.__single = single
             self.__multi = multi
@@ -103,8 +101,7 @@ class MessageGroupDescription:
         properties = {'single', 'multi', 'shared', 'ignore_no_match'}
         if not isinstance(other, MessageGroupDescription):
             return NotImplemented
-        return all(getattr(self, prop) == getattr(other, prop)
-                   for prop in properties)
+        return all(getattr(self, prop) == getattr(other, prop) for prop in properties)
 
     def __hash__(self) -> int:
         return hash((

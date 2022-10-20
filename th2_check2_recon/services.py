@@ -50,7 +50,6 @@ class EventSender:
                  event_router: EventBatchRouter,
                  event_batch_max_size: int,
                  event_batch_sending_interval: int):
-
         self.event_router = event_router
         self.max_batch_size = event_batch_max_size
         self.sending_interval = event_batch_sending_interval
@@ -147,7 +146,6 @@ class EventStore(AbstractService):
                  event_router: EventBatchRouter,
                  event_batch_max_size: int,
                  event_batch_sending_interval: int) -> None:
-
         self.event_sender: EventSender = EventSender(event_router=event_router,
                                                      event_batch_max_size=event_batch_max_size,
                                                      event_batch_sending_interval=event_batch_sending_interval)
@@ -215,7 +213,6 @@ class EventStore(AbstractService):
                                              event_status: Union[str, int],
                                              rule_event_id: EventID,
                                              event_pack_name: EventPack) -> None:
-
         event: Event = event_utils.create_event(name=event_name,
                                                 body=event_utils.create_event_body(MessageComponent(event_message)),
                                                 attached_message_ids=self._get_attached_message_ids(recon_message),
@@ -247,7 +244,6 @@ class EventStore(AbstractService):
                                     rule_event_id: EventID,
                                     recon_message: ReconMessage,
                                     event_message: str) -> None:
-
         event_message += f'\n Message {"not" if not recon_message._is_matched else ""} matched'
         event_status = EventStatus.SUCCESS if recon_message._is_matched else EventStatus.FAILED
         self.create_and_send_single_message_event(recon_message=recon_message,
@@ -259,7 +255,6 @@ class EventStore(AbstractService):
 
     def store_error(self, rule_event_id: EventID, event_name: str,
                     error_message: str, messages: Optional[List[ReconMessage]] = None) -> None:
-
         body = event_utils.create_event_body(MessageComponent(error_message))
         attached_message_ids = self._get_attached_message_ids(*messages) if messages is not None else []
         event: Event = event_utils.create_event(name=event_name,
@@ -349,7 +344,6 @@ class Cache(AbstractService):
     __slots__ = 'rule', 'capacity', 'event_store', 'rule_event', '_message_groups'
 
     def __init__(self, rule: Rule, cache_size: int) -> None:
-
         self.rule = rule
         self.capacity = cache_size
         self.event_store = self.rule.event_store
@@ -401,7 +395,6 @@ class Cache(AbstractService):
                      group_description: MessageGroupDescription,
                      event_store: EventStore,
                      parent_event_id: EventID) -> None:
-
             self.name = group_name
             self.capacity = capacity
             self.size = 0
@@ -414,7 +407,6 @@ class Cache(AbstractService):
             self.hash_by_sorted_timestamp: Dict[int, List[int]] = sortedcollections.SortedDict()
 
         def put(self, message: ReconMessage) -> None:
-
             if self.size < self.capacity and message.hash is not None:
                 if message.hash in self.data and self.group_description.single:
                     if self.group_description.shared:
