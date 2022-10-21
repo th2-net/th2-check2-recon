@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 import enum
 import logging
-from typing import Any, Dict, List, Union
+from typing import Any, List
 
-from th2_check2_recon.reconcommon import ReconMessage
-from th2_grpc_common.common_pb2 import ConnectionID, Direction, EventStatus, FilterOperation, MessageID
+from th2_grpc_common.common_pb2 import EventStatus, FilterOperation
 from th2_grpc_util.util_pb2 import ComparisonEntry, ComparisonEntryStatus, ComparisonEntryType
 
 logger = logging.getLogger(__name__)
@@ -30,123 +28,6 @@ class EventType(str, enum.Enum):
     STATUS = 'ReconStatus'
     EVENT = 'ReconEvent'
     UNKNOWN = ''
-
-
-class MessageUtils:
-
-    @staticmethod
-    def get_timestamp(message: Dict[str, Any]) -> datetime.datetime:
-        timestamp: datetime.datetime = message['metadata']['timestamp']
-        return timestamp if timestamp is not None else datetime.datetime.min
-
-    @staticmethod
-    def get_timestamp_ns(message: Dict[str, Any]) -> int:
-        timestamp = message['metadata']['timestamp']
-        return int(timestamp.timestamp() * 10**9) if timestamp is not None else 0
-
-    @staticmethod
-    def str_message_id(message: Dict[str, Any]) -> str:
-        res = ''
-        params = message['metadata']['session_alias'], message['metadata']['direction'], message['metadata']['sequence']
-        for param in params:
-            res += str(param) + ':' if param else 'None: '
-        return res
-
-
-class ReconMessageUtils:
-    """Some service methods for work with recon specifically and it's rules"""
-
-    @staticmethod
-    def get_value(message: ReconMessage, name: str, default: Any = '') -> Any:
-        """return simple value of a given field if presented in the recon message."""
-        return message.proto_message['fields'].get(name, default)
-
-    @staticmethod
-    def get_required_value(message: ReconMessage, name: str) -> Any:
-        """return simple value of a given field."""
-        return message.proto_message['fields'][name]
-
-    @staticmethod
-    def get_inner_value(message: ReconMessage, *names: Union[str, int], default: Any = '') -> Any:
-        value = message.proto_message['fields']
-        for name in names:
-            if isinstance(name, int):
-                if isinstance(value, list) and -len(value) <= name < len(value):
-                    value = value[name]
-                else:
-                    value = None
-            else:
-                value = value.get(name)
-
-            if value is None:
-                return default
-        return value
-
-    @staticmethod
-    def get_message_type(message: ReconMessage) -> str:
-        return message.proto_message['metadata']['message_type']  # type: ignore
-
-    @staticmethod
-    def get_session_alias(message: ReconMessage) -> str:
-        return message.proto_message['metadata']['session_alias']  # type: ignore
-
-    @staticmethod
-    def get_message_id(message: ReconMessage) -> MessageID:
-        return MessageID(connection_id=ConnectionID(session_alias=message.proto_message['metadata']['session_alias'],
-                                                    session_group=message.proto_message['metadata']['session_group']),
-                         direction=getattr(Direction, message.proto_message['metadata']['direction']),
-                         sequence=message.proto_message['metadata']['sequence'],
-                         subsequence=message.proto_message['metadata']['subsequence'])
-
-    @staticmethod
-    def equal_values_check(message1: ReconMessage, message2: ReconMessage, tag: str) -> bool:
-        """check that tag values are equal for both messages"""
-        return ReconMessageUtils.get_value(message1, tag) == ReconMessageUtils.get_value(message2, tag)  # type: ignore
-
-    @staticmethod
-    def equal_if_not_empty_values_check(message1: ReconMessage, message2: ReconMessage, tag: str) -> bool:
-        """check that tag values are equal (if they are not empty) for both messages"""
-        value1 = ReconMessageUtils.get_value(message1, tag)
-        value2 = ReconMessageUtils.get_value(message2, tag)
-        if value1 != '' and value2 != '':
-            return value1 == value2  # type: ignore
-        return True
-
-    @staticmethod
-    def float_equal_values_check(message1: ReconMessage, message2: ReconMessage, tag: str) -> bool:
-        """check that required float tag values are equal for both messages"""
-        if ReconMessageUtils.get_value(message1, tag) != '' and ReconMessageUtils.get_value(message2, tag) != '':
-            return float(ReconMessageUtils.get_value(message1, tag)) == \
-                   float(ReconMessageUtils.get_value(message2, tag))
-        return False
-
-    @staticmethod
-    def float_equal_if_not_empty_values_check(message1: ReconMessage, message2: ReconMessage, tag: str) -> bool:
-        """check that float tag values (if they are not empty) are equal for both messages"""
-        if ReconMessageUtils.get_value(message1, tag) != '' and ReconMessageUtils.get_value(message2, tag) != '':
-            return float(ReconMessageUtils.get_value(message1, tag)) == \
-                   float(ReconMessageUtils.get_value(message2, tag))
-        return True
-
-    @staticmethod
-    def enum_value_check(message: ReconMessage, tag: str, enum_list: list) -> bool:
-        return ReconMessageUtils.get_value(message, tag) in enum_list
-
-    @staticmethod
-    def not_zero_value_check(message: ReconMessage, tag: str) -> bool:
-        """check that tag values isn't equal to zero for both messages"""
-        val = ReconMessageUtils.get_value(message, tag)
-        if val == '':
-            return False
-        return float(val) != 0
-
-    @staticmethod
-    def zero_value_check(message: ReconMessage, tag: str) -> bool:
-        """check that tag value equals to zero"""
-        val = ReconMessageUtils.get_value(message, tag)
-        if val == '':
-            return False
-        return float(val) == 0
 
 
 class ComparatorUtils:

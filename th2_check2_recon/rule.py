@@ -21,7 +21,6 @@ from typing import Any, Dict, Generator, List, Optional
 
 from prometheus_client import Histogram
 from th2_check2_recon.handler import AbstractHandler, MessageHandler
-from th2_check2_recon.recon import Recon
 from th2_check2_recon.reconcommon import _get_msg_timestamp, MessageGroupDescription, ReconMessage
 from th2_check2_recon.services import Cache, EventStore, MessageComparator
 from th2_common.schema.metrics import common_metrics
@@ -34,7 +33,7 @@ logger = logging.getLogger(__name__)
 class Rule:
 
     def __init__(self,
-                 recon: Recon,
+                 recon: Any,
                  cache_size: int,
                  match_timeout: int,
                  match_all: bool,
@@ -91,7 +90,7 @@ class Rule:
     def common_configuration(self) -> Optional[str]:
         """Returns recon-level rule configuration if it was set, else - None.
         """
-        return self.recon._config.configuration
+        return self.recon._config.configuration  # type: ignore
 
     @abstractmethod
     def group(self, message: ReconMessage, attributes: tuple, *args: Any, **kwargs: Any) -> None:

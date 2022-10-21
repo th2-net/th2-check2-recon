@@ -19,10 +19,8 @@ from typing import Any
 
 from google.protobuf.empty_pb2 import Empty
 from google.protobuf.text_format import MessageToString
-from th2_check2_recon.common import MessageUtils
 from th2_check2_recon.configuration import CrawlerConnectionConfiguration
-from th2_check2_recon.reconcommon import ReconMessage
-from th2_check2_recon.rule import Rule
+from th2_check2_recon.reconcommon import ReconMessage, ReconMessageUtils
 from th2_common.schema.message.message_listener import MessageListener
 from th2_common_utils import message_to_dict
 from th2_grpc_common.common_pb2 import EventID, MessageBatch
@@ -34,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 class AbstractHandler(MessageListener, ABC):
-    def __init__(self, rule: Rule) -> None:
+    def __init__(self, rule: Any) -> None:
         self._rule = rule
 
     @abstractmethod
@@ -61,7 +59,7 @@ class MessageHandler(AbstractHandler):
                 process_timer.observe(time.time() - start_time)
 
                 logger.debug("Processed '%s' id='%s'" %
-                             (data['metadata']['message_type'], MessageUtils.str_message_id(data)))
+                             (data['metadata']['message_type'], ReconMessageUtils.str_message_id(data)))
 
             logger.debug("Cache size '%s': %s." % (self._rule.get_name(), self._rule.log_groups_size()))
 
@@ -121,7 +119,7 @@ class GRPCHandler(DataProcessorServicer):
                     finally:
                         process_timer.observe(time.time() - start_time)
                 logger.debug("Processed '%s' id='%s'"
-                             % (data['metadata']['message_type'], MessageUtils.str_message_id(data)))
+                             % (data['metadata']['message_type'], ReconMessageUtils.str_message_id(data)))
             return MessageResponse(ids=[msg.metadata.id for msg in messages], status=Status(handshake_required=False))
         except Exception as e:
             logger.exception(f'SendMessage request failed: {e}')

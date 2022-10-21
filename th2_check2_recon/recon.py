@@ -14,13 +14,12 @@
 
 import importlib
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from grpc import Server
 from th2_check2_recon.configuration import ReconConfiguration
 from th2_check2_recon.handler import GRPCHandler
 from th2_check2_recon.reconcommon import MessageGroupDescription, ReconMessage
-from th2_check2_recon.rule import Rule
 from th2_check2_recon.services import Cache, EventStore, MessageComparator
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_common.schema.message.message_router import MessageRouter
@@ -38,7 +37,7 @@ class Recon:
                  message_comparator: Optional[MessageComparator] = None,
                  grpc_server: Optional[Server] = None) -> None:
         logger.info('Recon initializing...')
-        self.rules: List[Rule] = []
+        self.rules: List[Any] = []
         self._config = ReconConfiguration(**custom_config)
         self.__message_router: MessageRouter = message_router
         self.event_store = EventStore(event_router=event_router,
@@ -84,7 +83,7 @@ class Recon:
         finally:
             logger.info('Recon was stopped!')
 
-    def __load_rules(self) -> List[Rule]:
+    def __load_rules(self) -> List[Any]:
         logger.info('Try to load rules')
         rules_package = importlib.import_module(self._config.rules_package_path)
         loaded_rules = []

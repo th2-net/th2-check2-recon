@@ -19,13 +19,12 @@ import enum
 import itertools
 import logging
 from threading import Lock, Timer
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import sortedcollections
 from th2_check2_recon.common import EventType, MessageComponent, \
     VerificationComponent
 from th2_check2_recon.reconcommon import MessageGroupDescription, ReconMessage
-from th2_check2_recon.rule import Rule
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_common_utils import dict_to_message
 from th2_common_utils import event_utils
@@ -343,7 +342,7 @@ class MessageComparator(AbstractService):
 class Cache(AbstractService):
     __slots__ = 'rule', 'capacity', 'event_store', 'rule_event', '_message_groups'
 
-    def __init__(self, rule: Rule, cache_size: int) -> None:
+    def __init__(self, rule: Any, cache_size: int) -> None:
         self.rule = rule
         self.capacity = cache_size
         self.event_store = self.rule.event_store
