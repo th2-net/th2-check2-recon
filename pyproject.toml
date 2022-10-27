@@ -15,12 +15,12 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.7,<4"
+python = "^3.7"
 sortedcollections="2.1.0"
 th2-grpc-util="3.0.4"
 th2-common="3.9.0"
 th2-grpc-crawler-data-processor="0.3.1"
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
