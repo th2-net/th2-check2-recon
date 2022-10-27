@@ -22,7 +22,7 @@ jobs:
         run: echo '::set-output name=package_version::$(poetry version -s)'
       - name: Build custom package version
         id: release_ver
-        run: echo ::set-output name=value::"${{ steps.pack_ver.outputs.prop }}.dev${{ github.run_id }}"
+        run: echo ::set-output name=value::"${{ steps.pack_ver.outputs.package_version }}.dev${{ github.run_id }}"
       - name: Show package version
         run: echo ${{ steps.release_ver.outputs.value }}
       - name: Set version for current build in pyproject.toml
