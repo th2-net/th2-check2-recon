@@ -14,7 +14,7 @@
 
 import importlib
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 
 from grpc import Server
 from th2_check2_recon.configuration import ReconConfiguration
@@ -37,7 +37,7 @@ class Recon:
                  message_comparator: Optional[MessageComparator] = None,
                  grpc_server: Optional[Server] = None) -> None:
         logger.info('Recon initializing...')
-        self.rules: List[Any] = []
+        self.rules: list = []
         self._config = ReconConfiguration(**custom_config)
         self.__message_router: MessageRouter = message_router
         self.event_store = EventStore(event_router=event_router,
@@ -83,7 +83,7 @@ class Recon:
         finally:
             logger.info('Recon was stopped!')
 
-    def __load_rules(self) -> List[Any]:
+    def __load_rules(self) -> list:
         logger.info('Try to load rules')
         rules_package = importlib.import_module(self._config.rules_package_path)
         loaded_rules = []
