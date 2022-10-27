@@ -25,7 +25,7 @@ jobs:
         run: echo ::set-output name=value::"${{ steps.pack_ver.outputs.prop }}.dev${{ github.run_id }}"
       - name: Show package version
         run: echo ${{ steps.release_ver.outputs.value }}
-      - name: Set version for current build in package_info.json
+      - name: Set version for current build in pyproject.toml
         run: poetry version ${{ steps.release_ver.outputs.value }}
       # Build and publish
       - name: Build package
