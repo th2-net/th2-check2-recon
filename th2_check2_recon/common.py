@@ -14,85 +14,26 @@
 
 import enum
 import logging
-import uuid
-from datetime import datetime
-from json import JSONEncoder
-from typing import Any, Dict
+from typing import Any, List
 
-from google.protobuf.timestamp_pb2 import Timestamp
-from th2_grpc_common.common_pb2 import Event
-from th2_grpc_common.common_pb2 import EventStatus, EventID, MessageID, FilterOperation
-from th2_grpc_util.util_pb2 import ComparisonEntryStatus, ComparisonEntry, ComparisonEntryType
+from th2_grpc_common.common_pb2 import EventStatus, FilterOperation
+from th2_grpc_util.util_pb2 import ComparisonEntry, ComparisonEntryStatus, ComparisonEntryType
 
 logger = logging.getLogger(__name__)
 
 
-class EventUtils:
-    class __ComponentEncoder(JSONEncoder):
-        def default(self, o):
-            return o.__dict__
-
-    @staticmethod
-    def create_event_body(component) -> bytes:
-        return EventUtils.component_encoder().encode(component).encode()
-
-    @staticmethod
-    def component_encoder() -> __ComponentEncoder:
-        return EventUtils.__ComponentEncoder()
-
-    @staticmethod
-    def new_event_id():
-        return EventID(id=str(uuid.uuid1()))
-
-    class EventType(enum.Enum):
-        ROOT = 'ReconRoot'
-        RULE = 'ReconRule'
-        STATUS = 'ReconStatus'
-        EVENT = 'ReconEvent'
-        UNKNOWN = ''
-
-    @staticmethod
-    def create_event(name: str, id: EventID = None, parent_id: EventID = None,
-                     status: EventStatus = EventStatus.SUCCESS, body: bytes = None,
-                     attached_message_ids: [MessageID] = None, type: EventType = EventType.UNKNOWN) -> Event:
-        if id is None:
-            id = EventUtils.new_event_id()
-        if attached_message_ids is None:
-            attached_message_ids = []
-        start_time = datetime.now()
-        seconds = int(start_time.timestamp())
-        nanos = int(start_time.microsecond * 1000)
-        return Event(id=id,
-                     parent_id=parent_id,
-                     start_timestamp=Timestamp(seconds=seconds, nanos=nanos),
-                     end_timestamp=Timestamp(seconds=seconds, nanos=nanos),
-                     status=status,
-                     name=name,
-                     body=body,
-                     type=type.value,
-                     attached_message_ids=attached_message_ids)
-
-
-class MessageUtils:
-
-    @staticmethod
-    def get_timestamp_ns(message: Dict[str, Any]) -> int:
-        timestamp = message['metadata']['timestamp']
-        return int(timestamp.timestamp() * 10**9) if timestamp is not None else 0
-
-    @staticmethod
-    def str_message_id(message: Dict[str, Any]) -> str:
-        res = ""
-        params = message['metadata']['session_alias'], message['metadata']['direction'], message['metadata']['sequence']
-        for param in params:
-            res += str(param) + ':' if param else 'None: '
-        return res
+class EventType(str, enum.Enum):
+    ROOT = 'ReconRoot'
+    RULE = 'ReconRule'
+    STATUS = 'ReconStatus'
+    EVENT = 'ReconEvent'
+    UNKNOWN = ''
 
 
 class ComparatorUtils:
 
     @staticmethod
-    def __get_result_count(comparison_result, status) -> int:
+    def __get_result_count(comparison_result: ComparisonEntry, status: ComparisonEntryStatus) -> int:
         count = sum(ComparatorUtils.__get_result_count(sub_result, status)
                     for sub_result in comparison_result.fields.values())
         if status == comparison_result.status:
@@ -101,18 +42,20 @@ class ComparatorUtils:
         return count
 
     @staticmethod
-    def __get_status_type_by_val(failed, passed) -> ComparisonEntryStatus:
+    def __get_status_type_by_val(failed: int, passed: int) -> ComparisonEntryStatus:
         if failed != 0:
-            return ComparisonEntryStatus.FAILED
+            return ComparisonEntryStatus.FAILED  # type: ignore
         else:
             if passed != 0:
-                return ComparisonEntryStatus.PASSED
-        return ComparisonEntryStatus.NA
+                return ComparisonEntryStatus.PASSED  # type: ignore
+        return ComparisonEntryStatus.NA  # type: ignore
 
     @staticmethod
     def get_status_type(comparison_result: ComparisonEntry) -> ComparisonEntryStatus:
-        failed = ComparatorUtils.__get_result_count(comparison_result, ComparisonEntryStatus.FAILED)
-        passed = ComparatorUtils.__get_result_count(comparison_result, ComparisonEntryStatus.PASSED)
+        failed = ComparatorUtils.__get_result_count(
+            comparison_result, ComparisonEntryStatus.FAILED)  # type: ignore
+        passed = ComparatorUtils.__get_result_count(
+            comparison_result, ComparisonEntryStatus.PASSED)  # type: ignore
         return ComparatorUtils.__get_status_type_by_val(failed, passed)
 
 
@@ -127,21 +70,27 @@ class TableComponent:
 
     def __init__(self, column_names: list) -> None:
         self.type = 'table'
-        self.rows = []
+        self.rows: List[dict] = []
         self.__column_names = column_names
 
-    def add_row(self, *values):
-        self.rows.append({column_name: value for column_name, value in zip(self.__column_names, values)})
+    def add_row(self, *values: Any) -> None:
+        self.rows.append({
+            column_name: value for column_name, value
+            in zip(self.__column_names, values)
+        })
 
 
 class VerificationComponent:
 
     def __init__(self, comparison_entry: ComparisonEntry) -> None:
         self.type = 'verification'
-        self.fields = {field_name: VerificationComponent.VerificationEntry(entry)
-                       for field_name, entry in comparison_entry.fields.items()}
-        self.status = EventStatus.FAILED if ComparatorUtils.get_status_type(
-            comparison_entry) == ComparisonEntryStatus.FAILED else EventStatus.SUCCESS
+        self.fields = {
+            field_name: VerificationComponent.VerificationEntry(entry)
+            for field_name, entry in comparison_entry.fields.items()
+        }
+        self.status = EventStatus.FAILED \
+            if ComparatorUtils.get_status_type(comparison_entry) == ComparisonEntryStatus.FAILED \
+            else EventStatus.SUCCESS
 
     class VerificationEntry:
 
@@ -152,7 +101,7 @@ class VerificationComponent:
             self.actual = comparison_entry.second
             self.key = comparison_entry.is_key
             self.operation = FilterOperation.Name(comparison_entry.operation)
-            self.fields = dict()
+            self.fields = {}
 
             if comparison_entry.type == ComparisonEntryType.COLLECTION:
                 for field_name, entry in comparison_entry.fields.items():

@@ -1,13 +1,13 @@
-FROM python:3.8-slim
-ARG pypi_repository_url
-ARG pypi_user
-ARG pypi_password
+FROM python:3.9-slim
 ARG app_name
 ARG app_version
+
+# Install poetry
+RUN pip install -U pip \
+    && curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+ENV PATH="${PATH}:/root/.poetry/bin"
+
 WORKDIR /usr/src/app
 COPY . .
-RUN printf '{"package_name":"%s","package_version":"%s"}' "$app_name" "$app_version" > "package_info.json" && \
-    pip install twine && \
-    pip install -r requirements.txt && \
-    python setup.py sdist && \
-    twine upload --repository-url ${pypi_repository_url} --username ${pypi_user} --password ${pypi_password} dist/*
+RUN poetry config virtualenvs.create false \
+  && poetry install --no-interaction --no-ansi

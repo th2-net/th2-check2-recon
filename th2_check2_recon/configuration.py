@@ -13,23 +13,32 @@
 # limitations under the License.
 
 import datetime
-from typing import Optional, Dict
+from typing import Dict, Optional, Union
 
 
 class RuleConfiguration:
 
-    def __init__(self, name, enabled, match_timeout, match_timeout_offset_ns, autoremove_timeout=None, configuration=None) -> None:
+    def __init__(self,
+                 name: str,
+                 enabled: str,
+                 match_timeout: str,
+                 match_timeout_offset_ns: str,
+                 match_all: Optional[str] = None,
+                 autoremove_timeout: Optional[str] = None,
+                 configuration: Optional[str] = None) -> None:
         self.name = str(name)
-        self.enabled = True if enabled.lower() == 'true' else False
+        self.enabled = enabled.lower() == 'true'
         self.match_timeout = int(match_timeout)
         self.match_timeout_offset_ns = int(match_timeout_offset_ns)
+        self.match_all = match_all is not None and match_all.lower() == 'true'
+        self.autoremove_timeout: Optional[Union[int, datetime.datetime]]
         if autoremove_timeout is not None:
             try:
-                self.autoremove_timeout = int(autoremove_timeout)
+                timeout_int = int(autoremove_timeout)
+                self.autoremove_timeout = timeout_int
             except ValueError:
-                self.autoremove_timeout = datetime.datetime.strptime(autoremove_timeout, '%H:%M')
-                self.autoremove_timeout = self.autoremove_timeout.combine(datetime.datetime.now().date(),
-                                                                          self.autoremove_timeout.time())
+                timeout = datetime.datetime.strptime(autoremove_timeout, '%H:%M')
+                self.autoremove_timeout = timeout.combine(datetime.datetime.now().date(), timeout.time())
         else:
             self.autoremove_timeout = None
         self.configuration = configuration
@@ -43,10 +52,15 @@ class CrawlerConnectionConfiguration:
 
 
 class ReconConfiguration:
-    def __init__(self, recon_name: str, cache_size: int, event_batch_max_size: int,
-                 event_batch_send_interval: int, rules_package_path: str, rules: list,
+    def __init__(self,
+                 recon_name: str,
+                 cache_size: int,
+                 event_batch_max_size: int,
+                 event_batch_send_interval: int,
+                 rules_package_path: str,
+                 rules: list,
                  crawler_connection_configuration: Optional[Dict[str, str]] = None,
-                 configuration=None) -> None:
+                 configuration: Optional[str] = None) -> None:
         self.recon_name = recon_name
         self.cache_size = int(cache_size)
         self.event_batch_max_size = int(event_batch_max_size)

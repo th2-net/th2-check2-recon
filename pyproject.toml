@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "th2-check2-recon"
+version = "4.0.0"
+description = "Python library for creating th2-check2-recon applications."
+authors = ["TH2-devs <th2-devs@exactprosystems.com>"]
+license = "Apache License 2.0"
+readme = "README.md"
+homepage ='https://github.com/th2-net/th2-check2-recon'
+repository  ='https://github.com/th2-net/th2-check2-recon'
+include = [
+    "LICENSE",
+]
+packages = [
+    {include = "th2_check2_recon"},
+]
+
+[tool.poetry.dependencies]
+python = ">=3.7,<4"
+sortedcollections="2.1.0"
+th2-grpc-util="3.0.4"
+th2-common="3.9.0"
+th2-grpc-crawler-data-processor="0.3.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
