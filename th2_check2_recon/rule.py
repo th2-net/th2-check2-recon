@@ -73,7 +73,7 @@ class Rule:
         pass
 
     @abstractmethod
-    def get_attributes(self) -> List[List[str]]:
+    def get_attributes(self) -> List[str]:
         pass
 
     @abstractmethod
@@ -110,9 +110,9 @@ class Rule:
     def get_listener(self) -> AbstractHandler:
         return MessageHandler(self)
 
-    def put_shared_message(self, message: ReconMessage, attributes: tuple) -> None:
+    def put_shared_message(self, message: ReconMessage) -> None:
         # message = copy.deepcopy(message)
-        self.recon.put_shared_message(message, attributes)
+        self.recon.put_shared_message(message)
 
     def has_been_grouped(self, message: ReconMessage, attributes: tuple, *args: Any, **kwargs: Any) -> bool:
         if message.group_name is None:

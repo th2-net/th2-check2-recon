@@ -19,7 +19,7 @@ import enum
 import itertools
 import logging
 from threading import Lock, Timer
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import sortedcollections
 from th2_check2_recon.common import EventType, MessageComponent, \
@@ -45,6 +45,12 @@ class AbstractService(ABC):
 
 class EventSender:
 
+    class RepeatTimer(Timer):
+
+        def run(self) -> None:
+            while not self.finished.wait(self.interval):  # type: ignore
+                self.function(*self.args, **self.kwargs)  # type: ignore
+
     def __init__(self,
                  event_router: EventBatchRouter,
                  event_batch_max_size: int,
@@ -53,8 +59,20 @@ class EventSender:
         self.max_batch_size = event_batch_max_size
         self.sending_interval = event_batch_sending_interval
 
-        self._event_batches_to_send: Dict[str, Tuple[EventBatch, Timer]] = {}
+        self._event_batches_to_send: Dict[str, EventBatch] = {}
         self._lock: Lock = Lock()
+        self._timer = self.create_timer()
+
+    def create_timer(self) -> Timer:
+        timer = EventSender.RepeatTimer(self.sending_interval, self._timer_handle)
+        timer.start()
+        return timer
+
+    def _timer_handle(self) -> None:
+        with self._lock:
+            for event_batch in self._event_batches_to_send.values():
+                self.send_event_batch(event_batch)
+            self._event_batches_to_send.clear()
 
     def send_event(self, event: Event) -> None:
         try:
@@ -70,43 +88,28 @@ class EventSender:
 
     def put_event_in_batch(self, event: Event) -> None:
         with self._lock:
-            if event.parent_id.id in self._event_batches_to_send:
-                event_batch, batch_timer = self._event_batches_to_send[event.parent_id.id]
+            parent_id = event.parent_id
+            if parent_id.id in self._event_batches_to_send:
+                event_batch = self._event_batches_to_send[parent_id.id]
             else:
-                event_batch = EventBatch(parent_event_id=event.parent_id)
-                batch_timer = self._create_timer(event_batch)
-                self._event_batches_to_send[event.parent_id.id] = (event_batch, batch_timer)
+                event_batch = EventBatch(parent_event_id=parent_id)
+                self._event_batches_to_send[parent_id.id] = event_batch
 
             event_batch.events.append(event)
             if len(event_batch.events) == self.max_batch_size:
-                del self._event_batches_to_send[event.parent_id.id]
-                batch_timer.cancel()
+                del self._event_batches_to_send[parent_id.id]
                 self.send_event_batch(event_batch)
-
-    def _create_timer(self, batch: EventBatch) -> Timer:
-        timer: Timer = Timer(self.sending_interval, self._timer_handle, [batch])
-        timer.start()
-        return timer
-
-    def _timer_handle(self, batch: EventBatch) -> None:
-        with self._lock:
-            if batch.parent_event_id.id in self._event_batches_to_send:
-                del self._event_batches_to_send[batch.parent_event_id.id]
-            else:
-                return
-        self.send_event_batch(batch)
 
     def stop(self) -> None:
         with self._lock:
-            for _, batch_timer in self._event_batches_to_send.values():
-                batch_timer.cancel()
-        with self._lock:
-            for event_batch, _ in self._event_batches_to_send.values():
+            self._timer.cancel()
+            for event_batch in self._event_batches_to_send.values():
                 self.send_event_batch(event_batch)
             self._event_batches_to_send.clear()
 
 
 class EventStore(AbstractService):
+
     class EventPack(str, enum.Enum):
         FAILED_MATCHES = 'Failed matches'
         PASSED_MATCHES = 'Passed matches'
@@ -136,7 +139,7 @@ class EventStore(AbstractService):
         def create_pack_event(self, event_pack_name: 'EventStore.EventPack') -> Event:
             event: Event = event_utils.create_event(name=event_pack_name,
                                                     parent_id=self.parent_event_id,
-                                                    event_type=EventType.STATUS.value)
+                                                    event_type=EventType.STATUS)
             self.event_pack_ids[event_pack_name] = event.id
             return event
 
@@ -150,25 +153,25 @@ class EventStore(AbstractService):
                                                      event_batch_sending_interval=event_batch_sending_interval)
         self.recon_event_id = self.put_recon_event(recon_name=recon_name)
         self.shared_groups_root_event_id = self.put_shared_groups_root_event()
-        self.shared_group_events: dict = {}
+        self.shared_group_events: Dict[str, EventID] = {}
         self.event_tree: Dict[str, EventStore.EventCollection] = {}
 
     def put_recon_event(self, recon_name: str) -> EventID:
-        recon_event: Event = event_utils.create_event(name=f'Recon: {recon_name}', event_type=EventType.ROOT.value)
+        recon_event: Event = event_utils.create_event(name=f'Recon: {recon_name}', event_type=EventType.ROOT)
         self.event_sender.put_event_in_batch(event=recon_event)
         return recon_event.id
 
     def put_shared_groups_root_event(self) -> EventID:
         shared_root_event_id: Event = event_utils.create_event(parent_id=self.recon_event_id,
                                                                name='Shared groups',
-                                                               event_type=EventType.EVENT.value)
+                                                               event_type=EventType.EVENT)
         self.event_sender.put_event_in_batch(event=shared_root_event_id)
         return shared_root_event_id.id
 
     def put_shared_group_event(self, shared_group_name: str) -> EventID:
         shared_group_event: Event = event_utils.create_event(parent_id=self.shared_groups_root_event_id,
                                                              name=f'Group: {shared_group_name}',
-                                                             event_type=EventType.EVENT.value)
+                                                             event_type=EventType.EVENT)
         self.event_tree[shared_group_event.id.id] = EventStore.EventCollection(shared_group_event.id)
         self.event_sender.put_event_in_batch(event=shared_group_event)
         return shared_group_event.id
@@ -178,7 +181,7 @@ class EventStore(AbstractService):
                                                      parent_id=self.recon_event_id,
                                                      body=event_utils.create_event_body(
                                                          MessageComponent(message=rule_description)),
-                                                     event_type=EventType.RULE.value)
+                                                     event_type=EventType.RULE)
         self.event_tree[rule_event.id.id] = EventStore.EventCollection(rule_event.id)
         self.event_sender.put_event_in_batch(event=rule_event)
         return rule_event.id
@@ -202,6 +205,7 @@ class EventStore(AbstractService):
             pack_event = self.event_tree[event_id.id].create_pack_event(event_pack_name)
             event_pack_id = pack_event.id
             self.event_sender.put_event_in_batch(event=pack_event)
+
         event.parent_id.CopyFrom(event_pack_id)
         self.event_sender.put_event_in_batch(event=event)
 
@@ -216,7 +220,7 @@ class EventStore(AbstractService):
                                                 body=event_utils.create_event_body(MessageComponent(event_message)),
                                                 attached_message_ids=self._get_attached_message_ids(recon_message),
                                                 status=event_status,
-                                                event_type=EventType.EVENT.value)
+                                                event_type=EventType.EVENT)
         self.put_event_in_group_pack(event=event,
                                      rule_event_id=rule_event_id,
                                      event_pack_name=event_pack_name,
@@ -230,8 +234,9 @@ class EventStore(AbstractService):
                                             event_pack_name: 'EventStore.EventPack') -> None:
         event_message = f'Timestamp of the last received message: {actual_timestamp}\nTimestamp this message: ' \
                         f'{recon_message.timestamp}\n Timeout: {timeout / 10 ** 9}'
-        event_status = EventStatus.SUCCESS if event_pack_name == EventStore.EventPack.IGNORED_NO_MATCH_WITHIN_TIMEOUT \
-          else EventStatus.FAILED
+        event_status = EventStatus.SUCCESS \
+            if event_pack_name == EventStore.EventPack.IGNORED_NO_MATCH_WITHIN_TIMEOUT \
+            else EventStatus.FAILED
         self.create_and_send_single_message_event(recon_message=recon_message,
                                                   event_name=f'{recon_message.all_info}',
                                                   event_message=event_message,
@@ -260,7 +265,7 @@ class EventStore(AbstractService):
                                                 status=EventStatus.FAILED,
                                                 attached_message_ids=attached_message_ids,
                                                 body=body,
-                                                event_type=EventType.EVENT.value)
+                                                event_type=EventType.EVENT)
         self.put_event_in_group_pack(event=event,
                                      rule_event_id=rule_event_id,
                                      event_pack_name=EventStore.EventPack.ERRORS)
@@ -340,6 +345,7 @@ class MessageComparator(AbstractService):
 
 
 class Cache(AbstractService):
+
     __slots__ = 'rule', 'capacity', 'event_store', 'rule_event', '_message_groups'
 
     def __init__(self, rule: Any, cache_size: int) -> None:

@@ -40,8 +40,8 @@ class Recon:
         self.rules: list = []
         self._config = ReconConfiguration(**custom_config)
         self.__message_router: MessageRouter = message_router
-        self.event_store = EventStore(event_router=event_router,
-                                      recon_name=self._config.recon_name,
+        self.event_store = EventStore(recon_name=self._config.recon_name,
+                                      event_router=event_router,
                                       event_batch_max_size=self._config.event_batch_max_size,
                                       event_batch_sending_interval=self._config.event_batch_send_interval)
         self.message_comparator: Optional[MessageComparator] = message_comparator
@@ -55,8 +55,7 @@ class Recon:
             self.__check_shared_message_groups()
 
             for rule in self.rules:
-                for attrs in rule.get_attributes():
-                    self.__message_router.subscribe_all(rule.get_listener(), *attrs)
+                self.__message_router.subscribe_all(rule.get_listener(), *rule.get_attributes())
 
             if self.grpc_server is not None:
                 grpc_handler = GRPCHandler(self.rules, self._config.crawler_connection_configuration,
@@ -113,7 +112,7 @@ class Recon:
                         raise AttributeError(f'Shared group "{group_name}" should have the same '
                                              f'attributes in all rules')
 
-    def put_shared_message(self, recon_message: ReconMessage, attributes: tuple) -> None:
+    def put_shared_message(self, recon_message: ReconMessage) -> None:
         for rule in self.rules:
             if recon_message.group_name is None:
                 raise AttributeError('Group name should be set in ReconMessage before putting it in shared group')
@@ -122,7 +121,6 @@ class Recon:
             if message_group in rule_groups:
                 if rule_groups[message_group].shared:
                     recon_message._shared = True
-                    rule.process(recon_message, attributes)
                 else:
                     raise AttributeError(
                         f'Trying to put shared message in group that '
