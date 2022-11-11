@@ -412,7 +412,7 @@ class Cache(AbstractService):
             self.hash_by_sorted_timestamp: Dict[int, List[int]] = sortedcollections.SortedDict()
 
         def put(self, message: ReconMessage) -> None:
-            if self.size < self.capacity and message.hash is not None:
+            if self.size < self.capacity:
                 if message.hash in self.data and self.group_description.single:
                     if self.group_description.shared:
                         return
@@ -448,7 +448,7 @@ class Cache(AbstractService):
                                     actual_timestamp=actual_timestamp,
                                     timeout=timeout,
                                     event_pack_name=EventStore.EventPack.IGNORED_NO_MATCH_WITHIN_TIMEOUT)
-                                self.remove(hash_of_message=old_hash)
+                                self.remove(message=old_hash)
                             else:
                                 self.event_store.store_no_match_within_timeout_event(
                                     rule_event_id=self.parent_event_id,
@@ -459,25 +459,53 @@ class Cache(AbstractService):
                 else:
                     break
 
-        def remove(self, hash_of_message: int, cause: Optional[str] = None, remove_all: bool = True) -> None:
-            message_for_remove = None
+        def remove_2(self, message: ReconMessage, cause: Optional[str] = None, remove_all: bool = True) -> None:
+
+            messages_for_remove = self.data[message.hash]
             if remove_all:
-                for message_for_remove in self.data[hash_of_message]:
+                for message_for_remove in messages_for_remove:
                     timestamp_for_remove = message_for_remove.timestamp_ns
-                    self.hash_by_sorted_timestamp[timestamp_for_remove].remove(hash_of_message)
+                    self.hash_by_sorted_timestamp[timestamp_for_remove].remove(message)  # TODO Optimize
                     if len(self.hash_by_sorted_timestamp[timestamp_for_remove]) == 0:
                         del self.hash_by_sorted_timestamp[timestamp_for_remove]
                     self.size -= 1
-                del self.data[hash_of_message]
+                del self.data[message]
             else:
-                message_for_remove = self.data[hash_of_message][0]
+                message_for_remove = messages_for_remove.pop(0)
                 timestamp_for_remove = message_for_remove.timestamp_ns
 
-                self.data[hash_of_message].remove(message_for_remove)
-                if len(self.data[hash_of_message]) == 0:
-                    del self.data[hash_of_message]
+                if len(messages_for_remove) == 0:
+                    del self.data[message]
 
-                self.hash_by_sorted_timestamp[timestamp_for_remove].remove(hash_of_message)
+                self.hash_by_sorted_timestamp[timestamp_for_remove].remove(message)
+                if len(self.hash_by_sorted_timestamp[timestamp_for_remove]) == 0:
+                    del self.hash_by_sorted_timestamp[timestamp_for_remove]
+                self.size -= 1
+
+            if cause is not None:
+                self.event_store.store_removed_message_event(rule_event_id=self.parent_event_id,
+                                                             recon_message=message_for_remove,
+                                                             event_message=cause)
+
+        def remove(self, message: int, cause: Optional[str] = None, remove_all: bool = True) -> None:
+            message_for_remove = None
+            messages_for_remove = self.data[message]
+            if remove_all:
+                for message_for_remove in messages_for_remove:
+                    timestamp_for_remove = message_for_remove.timestamp_ns
+                    self.hash_by_sorted_timestamp[timestamp_for_remove].remove(message)  # TODO Optimize
+                    if len(self.hash_by_sorted_timestamp[timestamp_for_remove]) == 0:
+                        del self.hash_by_sorted_timestamp[timestamp_for_remove]
+                    self.size -= 1
+                del self.data[message]
+            else:
+                message_for_remove = messages_for_remove.pop(0)
+                timestamp_for_remove = message_for_remove.timestamp_ns
+
+                if len(messages_for_remove) == 0:
+                    del self.data[message]
+
+                self.hash_by_sorted_timestamp[timestamp_for_remove].remove(message)
                 if len(self.hash_by_sorted_timestamp[timestamp_for_remove]) == 0:
                     del self.hash_by_sorted_timestamp[timestamp_for_remove]
                 self.size -= 1

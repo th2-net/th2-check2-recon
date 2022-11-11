@@ -123,9 +123,13 @@ class Rule:
         return True
 
     def process(self, message: ReconMessage, attributes: tuple, *args: Any, **kwargs: Any) -> None:
+
         self.__hash_and_store_event(message, attributes, *args, **kwargs)
         if message.hash is None:
-            logger.debug("RULE '%s': Ignored %s due to unset hash" % (self.name, message.all_info))
+
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("RULE '%s': Ignored %s due to unset hash" % (self.name, message.all_info))
+
             return
 
         if message.group_name not in self.__cache.message_groups:
@@ -133,7 +137,9 @@ class Rule:
                             f' - available groups: {self.description_of_groups()}\n'
                             f' - message.group_id: {message.group_name}')
         main_group = self.__cache.message_groups[message.group_name]
-        logger.debug("RULE '%s': Received %s" % (self.name, message.all_info))
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"RULE '{self.name}': Received {message.all_info}")
 
         for match in self.find_matched_messages(message, match_whole_list=self.match_all):
             # Will return None if some groups did not contain the message.
