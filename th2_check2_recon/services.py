@@ -412,22 +412,23 @@ class Cache(AbstractService):
             self.hash_by_sorted_timestamp: Dict[int, List[int]] = sortedcollections.SortedDict()
 
         def put(self, message: ReconMessage) -> None:
+            messages = self.data[message.hash]
             if self.size < self.capacity:
                 if message.hash in self.data and self.group_description.single:
                     if self.group_description.shared:
                         return
                     cause = f'The message was deleted because a new one came with the same hash "{message.hash}" ' \
                             f'in message group "{self.name}"'
-                    self.remove(message.hash, cause)
+                    self.__remove_2(message.hash, cause)
 
-                self.data[message.hash].append(message)
+                messages.append(message)
                 self.hash_by_sorted_timestamp.setdefault(message.timestamp_ns, []).append(message.hash)
                 self.size += 1
             else:
                 timestamp_for_remove = next(iter(self.hash_by_sorted_timestamp.keys()))
                 hash_for_remove = self.hash_by_sorted_timestamp[timestamp_for_remove][0]
                 cause = f'The message was deleted because there was no free space in the message group "{self.name}"'
-                self.remove(hash_for_remove, cause, remove_all=False)
+                self.__remove_2(hash_for_remove, cause, remove_all=False)
                 self.put(message)
 
         def check_no_match_within_timeout(self,
@@ -459,14 +460,13 @@ class Cache(AbstractService):
                 else:
                     break
 
-        def remove_2(self, message: ReconMessage, cause: Optional[str] = None, remove_all: bool = True) -> None:
-
-            messages_for_remove = self.data[message.hash]
+        def __remove_2(self, messages_for_remove: List[ReconMessage], message: ReconMessage, cause: Optional[str] = None, remove_all: bool = True) -> None:
             if remove_all:
                 for message_for_remove in messages_for_remove:
                     timestamp_for_remove = message_for_remove.timestamp_ns
-                    self.hash_by_sorted_timestamp[timestamp_for_remove].remove(message)  # TODO Optimize
-                    if len(self.hash_by_sorted_timestamp[timestamp_for_remove]) == 0:
+                    remove_ = self.hash_by_sorted_timestamp[timestamp_for_remove]
+                    remove_.remove(message)  # TODO Optimize
+                    if len(remove_) == 0:
                         del self.hash_by_sorted_timestamp[timestamp_for_remove]
                     self.size -= 1
                 del self.data[message]
