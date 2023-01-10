@@ -11,34 +11,42 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import datetime
-from typing import Any, Dict, Optional, Union
 
-from th2_grpc_common.common_pb2 import ConnectionID, Direction, MessageID
+import datetime
+import logging
+from typing import Any, Dict, Optional, Union, List, Callable
+
+from th2_common_utils.converters.message_converters import dict_to_message
+from th2_grpc_common.common_pb2 import ConnectionID, Direction, MessageID, Message
+from th2_grpc_util.util_pb2 import CompareMessageVsMessageResult, CompareMessageVsMessageRequest, \
+    CompareMessageVsMessageTask, ComparisonSettings
+
+from th2_check2_recon.utils import VerificationComponent
+
+logger = logging.getLogger(__name__)
 
 
 class ReconMessage:
 
     __slots__ = (
         'proto_message', 'group_name', 'hash', 'group_info', 'hash_info',
-        '_is_matched', '_shared', '_timestamp', '_timestamp_ns', '_info',
+        '_is_matched', '_shared', '_timestamp', '_timestamp_ns', '_timestamp_s', '_batch_timestamp_s', '_info',
         '_was_checked_no_match_within_timeout'
     )
 
     def __init__(self, proto_message: Dict[str, Any]) -> None:
         self.proto_message = proto_message
         self.group_name: Optional[str] = None
-        self.hash = None
+        self.hash: Optional[int] = None
 
-        self.group_info: dict = {}
         self.hash_info: dict = {}
 
         self._is_matched: bool = False
         self._shared: bool = False
         self._timestamp: Optional[datetime.datetime] = None
         self._timestamp_ns: Optional[int] = None
+        self._timestamp_s: Optional[int] = None
         self._info: Optional[str] = None
-        self._was_checked_no_match_within_timeout: bool = False
 
     @property
     def timestamp(self) -> datetime.datetime:
@@ -51,6 +59,12 @@ class ReconMessage:
         if self._timestamp_ns is None:
             self._timestamp_ns = ReconMessageUtils.get_timestamp_ns(self.proto_message)
         return self._timestamp_ns
+
+    @property
+    def timestamp_s(self) -> int:
+        if self._timestamp_s is None:
+            self._timestamp_s = round(self.timestamp_ns / 10**9)
+        return self._timestamp_s
 
     @staticmethod
     def get_info(info_dict: dict) -> str:
@@ -70,8 +84,6 @@ class ReconMessage:
             result += f" Group='{self.group_name}'"
         if len(self.hash_info) > 0:
             result += f' Hash{self.get_info(self.hash_info)}'
-        if len(self.group_info) > 0:
-            result += f' GroupID{self.get_info(self.group_info)}'
         return result
 
 
@@ -88,7 +100,7 @@ class MessageGroupDescription:
                  single: bool = False,
                  multi: bool = False,
                  shared: bool = False,
-                 ignore_no_match: bool = False):
+                 ignore_no_match: bool = False) -> None:
         if single ^ multi:  # xor
             self.__single = single
             self.__multi = multi
@@ -238,3 +250,42 @@ class ReconMessageUtils:
         if val == '':
             return False
         return float(val) == 0
+
+
+class MessageComparator:
+
+    def __init__(self, comparator_service) -> None:  # type: ignore
+        self.__comparator_service = comparator_service
+
+    def compare(self, expected: Message, actual: Message,
+                settings: ComparisonSettings) -> CompareMessageVsMessageResult:
+        return self.comparing(expected, actual, settings)
+
+    def comparing(self, expected: Message, actual: Message,
+                  settings: ComparisonSettings) -> CompareMessageVsMessageResult:
+        request = CompareMessageVsMessageRequest(comparison_tasks=[
+            CompareMessageVsMessageTask(first=expected, second=actual, settings=settings)
+        ])
+        try:
+            compare_response = self.__comparator_service.compareMessageVsMessage(request)
+            for compare_result in compare_response.comparison_results:
+                return compare_result  # type:ignore
+        except Exception as e:
+            logger.exception(f'Error while comparing: {e}.\nCompareMessageVsMessageRequest: {request}')
+        return CompareMessageVsMessageResult()
+
+    def compare_messages(self, messages: List[ReconMessage],
+                         ignore_fields: Optional[List[str]] = None) -> Optional[VerificationComponent]:
+        if len(messages) != 2:
+            logger.exception('The number of messages to compare must be 2.')
+            return None
+        settings = ComparisonSettings()
+        if ignore_fields is not None:
+            settings.ignore_fields.extend(ignore_fields)
+
+        compare_result = self.compare(dict_to_message(messages[0].proto_message['fields']),
+                                      dict_to_message(messages[1].proto_message['fields']), settings)
+        return VerificationComponent(compare_result.comparison_result)
+
+    def stop(self) -> None:
+        pass

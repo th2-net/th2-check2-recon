@@ -12,22 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
 import logging
-from typing import Any, List
 
 from th2_grpc_common.common_pb2 import EventStatus, FilterOperation
 from th2_grpc_util.util_pb2 import ComparisonEntry, ComparisonEntryStatus, ComparisonEntryType
 
 logger = logging.getLogger(__name__)
-
-
-class EventType(str, enum.Enum):
-    ROOT = 'ReconRoot'
-    RULE = 'ReconRule'
-    STATUS = 'ReconStatus'
-    EVENT = 'ReconEvent'
-    UNKNOWN = ''
 
 
 class ComparatorUtils:
@@ -64,20 +54,6 @@ class MessageComponent:
     def __init__(self, message: str) -> None:
         self.type = 'message'
         self.data = message
-
-
-class TableComponent:
-
-    def __init__(self, column_names: list) -> None:
-        self.type = 'table'
-        self.rows: List[dict] = []
-        self.__column_names = column_names
-
-    def add_row(self, *values: Any) -> None:
-        self.rows.append({
-            column_name: value for column_name, value
-            in zip(self.__column_names, values)
-        })
 
 
 class VerificationComponent:

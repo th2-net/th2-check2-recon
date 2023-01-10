@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import datetime
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, List, Any
 
 
 class RuleConfiguration:
@@ -21,14 +21,16 @@ class RuleConfiguration:
     def __init__(self,
                  name: str,
                  enabled: str,
+                 cache_size: int,
                  match_timeout: str,
                  match_timeout_offset_ns: str,
                  match_all: Optional[str] = None,
                  autoremove_timeout: Optional[str] = None,
-                 configuration: Optional[str] = None) -> None:
+                 custom_configuration: Optional[Any] = None) -> None:
         self.name = str(name)
         self.enabled = enabled.lower() == 'true'
-        self.match_timeout = int(match_timeout)
+        self.cache_size = int(cache_size)
+        self.match_timeout = float(match_timeout)
         self.match_timeout_offset_ns = int(match_timeout_offset_ns)
         self.match_all = match_all is not None and match_all.lower() == 'true'
         self.autoremove_timeout: Optional[Union[int, datetime.datetime]]
@@ -41,7 +43,7 @@ class RuleConfiguration:
                 self.autoremove_timeout = timeout.combine(datetime.datetime.now().date(), timeout.time())
         else:
             self.autoremove_timeout = None
-        self.configuration = configuration
+        self.custom_configuration = custom_configuration
 
 
 class CrawlerConnectionConfiguration:
@@ -53,8 +55,9 @@ class CrawlerConnectionConfiguration:
 
 class ReconConfiguration:
     def __init__(self,
+                 *,
                  recon_name: str,
-                 cache_size: int,
+                 attributes: List[str],
                  event_batch_max_size: int,
                  event_batch_send_interval: int,
                  rules_package_path: str,
@@ -62,7 +65,7 @@ class ReconConfiguration:
                  crawler_connection_configuration: Optional[Dict[str, str]] = None,
                  configuration: Optional[str] = None) -> None:
         self.recon_name = recon_name
-        self.cache_size = int(cache_size)
+        self.attributes = attributes
         self.event_batch_max_size = int(event_batch_max_size)
         self.event_batch_send_interval = int(event_batch_send_interval)
         self.rules_package_path = rules_package_path
