@@ -266,11 +266,16 @@ class EventStore(AbstractService):
                     messages: List[ReconMessage] = None):
         body = EventUtils.create_event_body(MessageComponent(error_message))
         attached_message_ids = self._get_attached_message_ids(*messages)
+        if not attached_message_ids:
+            body = EventUtils.create_event_body([
+                MessageComponent(error_message),
+                MessageComponent(str([m.proto_message for m in messages])),
+            ])
         event = EventUtils.create_event(name=event_name,
                                         status=EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids,
                                         body=body,
-                                        type=EventUtils.EventType.EVENT)
+                                        type=EventUtils.EventType.ERROR)
         self.send_rule_event(event, rule_event_id, EventStore.GroupEvent.ERRORS)
 
     def store_matched_out_of_timeout(self, rule_event_id: EventID, check_event: Event):
@@ -299,6 +304,7 @@ class EventStore(AbstractService):
                 for message in recon_msgs
             ]
         except KeyError:
+            logger.exception(f"Cannot parse message to form attached_message_ids. Messages:\n{recon_msgs}")
             return []
 
 
