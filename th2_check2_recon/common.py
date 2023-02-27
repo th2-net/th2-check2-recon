@@ -49,6 +49,7 @@ class EventUtils:
         RULE = 'ReconRule'
         STATUS = 'ReconStatus'
         EVENT = 'ReconEvent'
+        ERROR = 'ReconError'
         UNKNOWN = ''
 
     @staticmethod

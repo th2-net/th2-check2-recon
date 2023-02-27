@@ -182,11 +182,16 @@ class EventStore(AbstractService):
                     messages: List[ReconMessage] = None):
         body = EventUtils.create_event_body(MessageComponent(error_message))
         attached_message_ids = self._get_attached_message_ids(*messages)
+        if not attached_message_ids:
+            body = EventUtils.create_event_body([
+                MessageComponent(error_message),
+                MessageComponent(str([m.proto_message for m in messages])),
+            ])
         event = EventUtils.create_event(name=event_name,
                                         status=EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids,
                                         body=body,
-                                        type=EventUtils.EventType.EVENT)
+                                        type=EventUtils.EventType.ERROR)
         logger.debug("Create '%s' Event for rule Event '%s'", self.ERRORS, rule_event_id)
         self.send_event(event, rule_event_id, self.ERRORS)
 
@@ -206,6 +211,7 @@ class EventStore(AbstractService):
         try:
             return [message.proto_message['metadata']['id'] for message in recon_msgs]
         except KeyError:
+            logger.exception(f"Cannot parse message to form attached_message_ids. Messages:\n{recon_msgs}")
             return []
 
 
