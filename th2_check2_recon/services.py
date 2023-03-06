@@ -207,11 +207,12 @@ class EventStore(AbstractService):
     def stop(self):
         self.__events_batch_collector.stop()
 
-    def _get_attached_message_ids(self, *recon_msgs):
+    def _get_attached_message_ids(self, *recon_msgs: ReconMessage):
         try:
             return [message.proto_message['metadata']['id'] for message in recon_msgs]
         except KeyError:
-            logger.exception(f"Cannot parse message to form attached_message_ids. Messages:\n{recon_msgs}")
+            logger.exception(f"Cannot parse message to form attached_message_ids. Messages:\n"
+                             f"{[message.proto_message['metadata']['id'] for message in recon_msgs]}")
             return []
 
 
