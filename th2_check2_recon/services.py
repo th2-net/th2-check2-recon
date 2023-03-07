@@ -212,7 +212,7 @@ class EventStore(AbstractService):
             return [message.proto_message['metadata']['id'] for message in recon_msgs]
         except KeyError:
             logger.exception(f"Cannot parse message to form attached_message_ids. Messages:\n"
-                             f"{[message.proto_message['metadata']['id'] for message in recon_msgs]}")
+                             f"{[message.proto_message for message in recon_msgs]}")
             return []
 
 
