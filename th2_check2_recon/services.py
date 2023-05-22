@@ -26,7 +26,8 @@ from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, 
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
     CompareMessageVsMessageTask, CompareMessageVsMessageResult
 
-from th2_check2_recon.common import EventUtils, MessageComponent, VerificationComponent
+from th2_check2_recon.common import EventUtils, MessageComponent, VerificationComponent, \
+    MessageUtils
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
 
 logger = logging.getLogger(__name__)
@@ -209,9 +210,13 @@ class EventStore(AbstractService):
 
     def _get_attached_message_ids(self, *recon_msgs: ReconMessage):
         try:
-            return [message.proto_message['metadata']['id'] for message in recon_msgs]
+            return [MessageUtils.str_message_id(message.proto_message) for message in recon_msgs]
         except KeyError:
-            logger.exception(f"Cannot parse message to form attached_message_ids. Messages:\n"
+            logger.exception(f"Cannot parse message to form attached_message_ids. \n"
+                             f"Recon will continue to work. \n"
+                             f"This error indicates that the internal bug was observed and "
+                             f"recon will publish event with empty attached IDs. \n"
+                             f"Messages:\n"
                              f"{[message.proto_message for message in recon_msgs]}")
             return []
 

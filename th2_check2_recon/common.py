@@ -83,11 +83,7 @@ class MessageUtils:
 
     @staticmethod
     def str_message_id(message: Dict[str, Any]) -> str:
-        res = ""
-        params = message['metadata']['session_alias'], message['metadata']['direction'], message['metadata']['sequence']
-        for param in params:
-            res += str(param) + ':' if param else 'None: '
-        return res
+        return f"{message['metadata']['session_alias']}:{message['metadata']['direction']}:{message['metadata']['sequence']}"
 
 
 class ComparatorUtils:

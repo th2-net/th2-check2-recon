@@ -23,7 +23,7 @@ class ReconMessage:
                  "is_check_no_match_within_timeout", "_timestamp", "in_shared_groups", '_info')
 
     def __init__(self, proto_message: Dict[str, Any]) -> None:
-        self.proto_message = proto_message
+        self.proto_message = proto_message  # The result of message_to_dict, NOT the Orig proto obj.
         self.group_info = dict()
         self.group_id = None
         self.hash_info = dict()
