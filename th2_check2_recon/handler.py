@@ -92,7 +92,8 @@ class GRPCHandler(DataProcessorServicer):
     def SendMessage(self, request, context):
         try:
             logger.debug('CrawlerID %s sent %s messages', request.id.name, len(request.message_data))
-            messages = [data.message for data in request.message_data]
+            messages = [message_item.message for data in request.message_data
+                        for message_item in data.message_item]
             for proto_message in messages:
                 data = message_to_dict(proto_message)
                 for rule in self._rules:

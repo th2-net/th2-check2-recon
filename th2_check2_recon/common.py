@@ -17,7 +17,7 @@ import logging
 import uuid
 from datetime import datetime
 from json import JSONEncoder
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from google.protobuf.timestamp_pb2 import Timestamp
 from th2_grpc_common.common_pb2 import Event
@@ -49,12 +49,15 @@ class EventUtils:
         RULE = 'ReconRule'
         STATUS = 'ReconStatus'
         EVENT = 'ReconEvent'
+        ERROR = 'ReconError'
         UNKNOWN = ''
 
     @staticmethod
     def create_event(name: str, id: EventID = None, parent_id: EventID = None,
                      status: EventStatus = EventStatus.SUCCESS, body: bytes = None,
-                     attached_message_ids: [MessageID] = None, type: EventType = EventType.UNKNOWN) -> Event:
+                     attached_message_ids: Optional[List[MessageID]] = None,
+                     type: EventType = EventType.UNKNOWN
+                     ) -> Event:
         if id is None:
             id = EventUtils.new_event_id()
         if attached_message_ids is None:
@@ -82,11 +85,7 @@ class MessageUtils:
 
     @staticmethod
     def str_message_id(message: Dict[str, Any]) -> str:
-        res = ""
-        params = message['metadata']['session_alias'], message['metadata']['direction'], message['metadata']['sequence']
-        for param in params:
-            res += str(param) + ':' if param else 'None: '
-        return res
+        return f"{message['metadata']['session_alias']}:{message['metadata']['direction']}:{message['metadata']['sequence']}"
 
 
 class ComparatorUtils:
@@ -131,7 +130,8 @@ class TableComponent:
         self.__column_names = column_names
 
     def add_row(self, *values):
-        self.rows.append({column_name: value for column_name, value in zip(self.__column_names, values)})
+        self.rows.append(
+            {column_name: value for column_name, value in zip(self.__column_names, values)})
 
 
 class VerificationComponent:

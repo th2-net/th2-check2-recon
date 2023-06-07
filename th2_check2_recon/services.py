@@ -22,11 +22,13 @@ import sortedcollections
 from google.protobuf import text_format
 from th2_common.schema.event.event_batch_router import EventBatchRouter
 from th2_common_utils import dict_to_message
-from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, Message
+from th2_grpc_common.common_pb2 import EventStatus, Event, EventBatch, EventID, Message, MessageID, \
+    ConnectionID
 from th2_grpc_util.util_pb2 import CompareMessageVsMessageRequest, ComparisonSettings, \
     CompareMessageVsMessageTask, CompareMessageVsMessageResult
 
-from th2_check2_recon.common import EventUtils, MessageComponent, VerificationComponent
+from th2_check2_recon.common import EventUtils, MessageComponent, VerificationComponent, \
+    MessageUtils
 from th2_check2_recon.reconcommon import ReconMessage, MessageGroupType
 
 logger = logging.getLogger(__name__)
@@ -110,7 +112,8 @@ class EventStore(AbstractService):
                                                              event_batch_send_interval)
         self.__group_event_by_rule_id = dict()
 
-        self.root_event: Event = EventUtils.create_event(name='Recon: ' + report_name, type=EventUtils.EventType.ROOT)
+        self.root_event: Event = EventUtils.create_event(name='Recon: ' + report_name,
+                                                         type=EventUtils.EventType.ROOT)
         logger.debug('Created root report Event for Recon: %s',
                      text_format.MessageToString(self.root_event, as_one_line=True))
         self.send_parent_event(self.root_event)
@@ -123,7 +126,8 @@ class EventStore(AbstractService):
                 group_event = EventUtils.create_event(parent_id=rule_event_id,
                                                       name=group_event_name,
                                                       type=EventUtils.EventType.STATUS)
-                logger.debug(f"Create group Event '%s' for rule Event '%s'", group_event_name, rule_event_id)
+                logger.debug(f"Create group Event '%s' for rule Event '%s'", group_event_name,
+                             rule_event_id)
                 self.__group_event_by_rule_id[rule_event_id.id][group_event_name] = group_event
                 self.send_parent_event(group_event)
 
@@ -146,7 +150,8 @@ class EventStore(AbstractService):
         units = ['sec', 'ms', 'mcs', 'ns']
         factor_units = [1_000_000_000, 1_000_000, 1_000, 1]
         for unit, factor_unit in zip(units, factor_units):
-            if not any((actual_timestamp % factor_unit, recon_message.timestamp % factor_unit, timeout % factor_unit)):
+            if not any((actual_timestamp % factor_unit, recon_message.timestamp % factor_unit,
+                        timeout % factor_unit)):
                 break
 
         actual_timestamp = int(actual_timestamp / factor_unit)
@@ -162,10 +167,12 @@ class EventStore(AbstractService):
                                         body=body,
                                         attached_message_ids=attached_message_ids,
                                         type=EventUtils.EventType.EVENT)
-        logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH_WITHIN_TIMEOUT, rule_event_id)
+        logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH_WITHIN_TIMEOUT,
+                     rule_event_id)
         self.send_event(event, rule_event_id, self.NO_MATCH_WITHIN_TIMEOUT)
 
-    def store_message_removed(self, rule_event_id: EventID, message: ReconMessage, event_message: str):
+    def store_message_removed(self, rule_event_id: EventID, message: ReconMessage,
+                              event_message: str):
         name = f"Remove {message.all_info}"
         event_message += f"\n Message {'not' if not message.is_matched else ''} matched"
         body = EventUtils.create_event_body(MessageComponent(event_message))
@@ -182,11 +189,16 @@ class EventStore(AbstractService):
                     messages: List[ReconMessage] = None):
         body = EventUtils.create_event_body(MessageComponent(error_message))
         attached_message_ids = self._get_attached_message_ids(*messages)
+        if not attached_message_ids:
+            body = EventUtils.create_event_body([
+                MessageComponent(error_message),
+                MessageComponent(str([m.proto_message for m in messages])),
+            ])
         event = EventUtils.create_event(name=event_name,
                                         status=EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids,
                                         body=body,
-                                        type=EventUtils.EventType.EVENT)
+                                        type=EventUtils.EventType.ERROR)
         logger.debug("Create '%s' Event for rule Event '%s'", self.ERRORS, rule_event_id)
         self.send_event(event, rule_event_id, self.ERRORS)
 
@@ -202,10 +214,24 @@ class EventStore(AbstractService):
     def stop(self):
         self.__events_batch_collector.stop()
 
-    def _get_attached_message_ids(self, *recon_msgs):
+    def _get_attached_message_ids(self, *recon_msgs: ReconMessage) -> List[MessageID]:
         try:
-            return [message.proto_message['metadata']['id'] for message in recon_msgs]
+            # TODO - perhaps it's better to keep MessageID in memory when we receive it
+            #   instead of building every time here (and in recon rules)
+            return [MessageID(connection_id=ConnectionID(session_alias=
+                                                         msg.proto_message['metadata'][
+                                                             'session_alias']),
+                              direction=msg.proto_message['metadata']['direction'],
+                              sequence=msg.proto_message['metadata']['sequence'])
+                    for msg in recon_msgs]
+
         except KeyError:
+            logger.exception(f"Cannot parse message to form attached_message_ids. \n"
+                             f"Recon will continue to work. \n"
+                             f"This error indicates that the internal bug was observed and "
+                             f"recon will publish event with empty attached IDs. \n"
+                             f"Messages:\n"
+                             f"{[message.proto_message for message in recon_msgs]}")
             return []
 
 
@@ -239,7 +265,9 @@ class MessageComparator(AbstractService):
         if ignore_fields is not None:
             settings.ignore_fields.extend(ignore_fields)
 
-        compare_result = self.compare(dict_to_message(messages[0].proto_message['fields']), dict_to_message(messages[1].proto_message['fields']), settings)
+        compare_result = self.compare(dict_to_message(messages[0].proto_message['fields']),
+                                      dict_to_message(messages[1].proto_message['fields']),
+                                      settings)
         return VerificationComponent(compare_result.comparison_result)
 
     def stop(self):
@@ -247,7 +275,6 @@ class MessageComparator(AbstractService):
 
 
 class Cache(AbstractService):
-
     __slots__ = 'rule', 'capacity', 'event_store', 'rule_event', '_message_groups'
 
     def __init__(self, rule, cache_size) -> None:
@@ -268,13 +295,16 @@ class Cache(AbstractService):
                                                                             parent_event=self.rule_event)
             else:
                 if message_group_id not in self.rule.recon.shared_message_groups:
-                    self.rule.recon.shared_message_groups[message_group_id] = Cache.MessageGroup(id=message_group_id,
-                                                                                             capacity=cache_size,
-                                                                                             type=message_group_type,
-                                                                                             event_store=self.event_store,
-                                                                                             parent_event=self.rule_event)
-                self._message_groups[message_group_id] = self.rule.recon.shared_message_groups[message_group_id]
-        has_multi = any(MessageGroupType.multi in group.type for group in self.message_groups.values())
+                    self.rule.recon.shared_message_groups[message_group_id] = Cache.MessageGroup(
+                        id=message_group_id,
+                        capacity=cache_size,
+                        type=message_group_type,
+                        event_store=self.event_store,
+                        parent_event=self.rule_event)
+                self._message_groups[message_group_id] = self.rule.recon.shared_message_groups[
+                    message_group_id]
+        has_multi = any(
+            MessageGroupType.multi in group.type for group in self.message_groups.values())
         for group in self.message_groups.values():
             if has_multi:
                 if MessageGroupType.single in group.type:
@@ -292,7 +322,8 @@ class Cache(AbstractService):
 
         __slots__ = 'id', 'capacity', 'size', 'type', 'event_store', 'parent_event', 'is_cleanable', 'data', 'hash_by_sorted_timestamp'
 
-        def __init__(self, id: str, capacity: int, type: {MessageGroupType}, event_store: EventStore,
+        def __init__(self, id: str, capacity: int, type: {MessageGroupType},
+                     event_store: EventStore,
                      parent_event: Event) -> None:
             self.id = id
             self.capacity = capacity
@@ -302,7 +333,8 @@ class Cache(AbstractService):
             self.parent_event: Event = parent_event
 
             self.is_cleanable = True
-            self.data: Dict[int, List[ReconMessage]] = collections.defaultdict(list)  # {ReconMessage.hash: [ReconMessage]}
+            self.data: Dict[int, List[ReconMessage]] = collections.defaultdict(
+                list)  # {ReconMessage.hash: [ReconMessage]}
             self.hash_by_sorted_timestamp: Dict[
                 int, List[int]] = sortedcollections.SortedDict()  # {timestamp: [ReconMessage.hash]}
 
@@ -331,8 +363,10 @@ class Cache(AbstractService):
                     for recon_message in self.data[old_hash]:
                         if not recon_message.is_matched and not recon_message.is_check_no_match_within_timeout:
                             recon_message.is_check_no_match_within_timeout = True
-                            self.event_store.store_no_match_within_timeout(self.parent_event.id, recon_message,
-                                                                           actual_timestamp, timeout)
+                            self.event_store.store_no_match_within_timeout(self.parent_event.id,
+                                                                           recon_message,
+                                                                           actual_timestamp,
+                                                                           timeout)
                 else:
                     break
 
