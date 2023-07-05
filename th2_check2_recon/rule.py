@@ -1,4 +1,4 @@
-# Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+# Copyright 2020-2023 Exactpro (Exactpro Systems Limited)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ from th2_check2_recon.handler import MessageHandler, AbstractHandler
 from th2_check2_recon.recon import Recon
 from th2_check2_recon.reconcommon import ReconMessage, _get_msg_timestamp, MessageGroupType
 from th2_check2_recon.services import Cache, MessageComparator
+from th2_check2_recon.kafka import KafkaClient
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,8 @@ class Rule:
                  match_timeout: int,
                  autoremove_timeout: Optional[int],
                  configuration,
-                 metric_number: int) -> None:
+                 metric_number: int,
+                 kafka: KafkaClient) -> None:
 
         self.recon = recon
         self.configure(configuration)
@@ -66,6 +68,8 @@ class Rule:
         self.event_store.send_parent_event(self.rule_event)
 
         self.__cache = Cache(self, cache_size)
+
+        self.kafka = kafka
 
         self.RULE_PROCESSING_TIME = Histogram(
             f'th2_recon_rule_{metric_number}_processing_time',

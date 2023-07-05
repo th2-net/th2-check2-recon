@@ -41,12 +41,19 @@ class CrawlerConnectionConfiguration:
         self.name = name
         self.version = version
 
+class KafkaConfiguration:
+    def __init__(self, config: dict):
+        self.topic = config.pop("topic", "default")
+        self.fail_on_connection_failure = config.pop("fail_on_connection_failure", False)
+        self.bootstrap_servers = config.get("bootstrap.servers", "localhost:9092")
+        self.producer_config = config
+
 
 class ReconConfiguration:
     def __init__(self, recon_name: str, cache_size: int, event_batch_max_size: int,
                  event_batch_send_interval: int, rules_package_path: str, rules: list,
                  crawler_connection_configuration: Optional[Dict[str, str]] = None,
-                 configuration=None) -> None:
+                 configuration=None, use_kafka_producer: bool = False, kafka_producer_configuration: Optional[Dict[str, str]] = None) -> None:
         self.recon_name = recon_name
         self.cache_size = int(cache_size)
         self.event_batch_max_size = int(event_batch_max_size)
@@ -60,3 +67,9 @@ class ReconConfiguration:
             self.crawler_connection_configuration = CrawlerConnectionConfiguration(**crawler_connection_configuration)
 
         self.configuration = configuration
+
+        self.use_kafka_producer = use_kafka_producer
+        if use_kafka_producer:
+            self.kafka_configuration = KafkaConfiguration(kafka_producer_configuration)
+        else:
+            self.kafka_configuration = None

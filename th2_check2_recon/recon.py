@@ -1,4 +1,4 @@
-# Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+# Copyright 2020-2023 Exactpro (Exactpro Systems Limited)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ from th2_check2_recon.configuration import ReconConfiguration
 from th2_check2_recon.handler import GRPCHandler
 from th2_check2_recon.reconcommon import MessageGroupType, ReconMessage
 from th2_check2_recon.services import EventStore, MessageComparator
+from th2_check2_recon.kafka import KafkaProducer, BlobKafkaClient
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,12 @@ class Recon:
     def start(self):
         try:
             logger.info('Recon running...')
+
+            if self._config.kafka_configuration:
+                self.kafka = KafkaProducer(self._config.kafka_configuration)
+            else:
+                self.kafka = BlobKafkaClient()
+
             self.rules = self.__load_rules()
             for rule in self.rules:
                 for attrs in rule.get_attributes():
@@ -91,7 +98,8 @@ class Recon:
                                                 match_timeout=match_timeout,
                                                 autoremove_timeout=rule_config.autoremove_timeout,
                                                 configuration=rule_config.configuration,
-                                                metric_number=number + 1))
+                                                metric_number=number + 1,
+                                                kafka=self.kafka))
         logger.info('Rules loaded')
         return loaded_rules
 
