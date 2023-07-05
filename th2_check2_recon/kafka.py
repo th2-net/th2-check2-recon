@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from confluent_kafka import Producer
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -55,8 +56,11 @@ class KafkaProducer(KafkaClient):
             self.connect()
 
         if self._is_connected():  
-            self.producer.poll(0)
-            self.producer.produce(self.topic, value=message.encode('utf-8'), callback=self._on_delivery)
+            try:
+                self.producer.poll(0)
+                self.producer.produce(self.topic, value=message.encode('utf-8'), callback=self._on_delivery)
+            except Exception as e:
+                logger.error(f"Error while sending kafka message: {e}", e)
 
 class BlobKafkaClient(KafkaClient):
     def send(self, message: str) -> None:
