@@ -22,6 +22,10 @@ class KafkaClient:
     def send(self, message: str) -> None:
         pass
 
+    @abstractmethod
+    def send(self, topic: str, message: str) -> None:
+        pass
+
 class KafkaProducer(KafkaClient):
     def __init__(self, config: KafkaConfiguration):
         self.topic = config.topic
@@ -51,17 +55,23 @@ class KafkaProducer(KafkaClient):
     def _is_connected(self):
         return self.connected and self.producer != None
     
-    def send(self, message: str) -> None:
+    def send(self, topic: str, message: str) -> None:
         if not self._is_connected():
             self.connect()
 
         if self._is_connected():  
             try:
                 self.producer.poll(0)
-                self.producer.produce(self.topic, value=message.encode('utf-8'), callback=self._on_delivery)
+                self.producer.produce(topic, value=message.encode('utf-8'), callback=self._on_delivery)
             except Exception as e:
                 logger.error(f"Error while sending kafka message: {e}", e)
+    
+    def send(self, message: str) -> None:
+        self.send(self.topic, self.message)
 
 class BlobKafkaClient(KafkaClient):
     def send(self, message: str) -> None:
+        pass
+
+    def send(self, topic: str, message: str) -> None:
         pass
