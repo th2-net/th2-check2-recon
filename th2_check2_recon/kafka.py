@@ -12,10 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from confluent_kafka import Producer
+from abc import ABCMeta, abstractmethod
 
 import logging
 
 logger = logging.getLogger(__name__)
+
+class KafkaConfiguration:
+    def __init__(self, config: dict):
+        self.topic = config.pop("topic", "default")
+        self.fail_on_connection_failure = config.pop("fail_on_connection_failure", False)
+        self.bootstrap_servers = config.get("bootstrap.servers", "localhost:9092")
+        self.producer_config = config
 
 class KafkaClient:
     @abstractmethod

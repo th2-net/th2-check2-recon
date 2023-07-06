@@ -14,6 +14,7 @@
 
 import datetime
 from typing import Optional, Dict
+from kafka import KafkaConfiguration
 
 
 class RuleConfiguration:
@@ -40,13 +41,6 @@ class CrawlerConnectionConfiguration:
     def __init__(self, name: str = 'Recon Data Processor', version: str = '1.0.0') -> None:
         self.name = name
         self.version = version
-
-class KafkaConfiguration:
-    def __init__(self, config: dict):
-        self.topic = config.pop("topic", "default")
-        self.fail_on_connection_failure = config.pop("fail_on_connection_failure", False)
-        self.bootstrap_servers = config.get("bootstrap.servers", "localhost:9092")
-        self.producer_config = config
 
 
 class ReconConfiguration:
