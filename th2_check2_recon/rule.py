@@ -48,6 +48,7 @@ class Rule:
 
         self.recon = recon
         self.configure(configuration)
+        self.kafka_client(kafka)
         self.name = self.get_name()
         logger.info("Rule '%s' initializing...", self.name)
 
@@ -127,6 +128,9 @@ class Rule:
         pass
 
     def configure(self, configuration):
+        pass
+
+    def kafka_client(self, kafka):
         pass
 
     def get_listener(self) -> AbstractHandler:
