@@ -33,6 +33,10 @@ class KafkaClient:
     def send_with_topic(self, topic: str, message: str) -> None:
         pass
 
+    @abstractmethod
+    def flush(self) -> None:
+        pass
+
 class KafkaProducer(KafkaClient):
     def __init__(self, config: KafkaConfiguration):
         self.topic = config.topic
@@ -75,10 +79,17 @@ class KafkaProducer(KafkaClient):
     
     def send(self, message: str) -> None:
         self.send_with_topic(self.topic, message)
+    
+    def flush(self) -> None:
+        if self.producer:
+            self.producer.poll(1)
 
 class BlobKafkaClient(KafkaClient):
     def send(self, message: str) -> None:
         pass
 
     def send_with_topic(self, topic: str, message: str) -> None:
+        pass
+
+    def flush(self) -> None:
         pass
