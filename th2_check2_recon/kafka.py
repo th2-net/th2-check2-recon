@@ -13,7 +13,6 @@
 # limitations under the License.
 from confluent_kafka import Producer
 from abc import ABCMeta, abstractmethod
-
 import logging
 
 logger = logging.getLogger(__name__)
@@ -31,7 +30,7 @@ class KafkaClient:
         pass
 
     @abstractmethod
-    def send(self, topic: str, message: str) -> None:
+    def send_with_topic(self, topic: str, message: str) -> None:
         pass
 
 class KafkaProducer(KafkaClient):
@@ -63,9 +62,9 @@ class KafkaProducer(KafkaClient):
     def _is_connected(self):
         return self.connected and self.producer != None
     
-    def send(self, topic: str, message: str) -> None:
+    def send_with_topic(self, topic: str, message: str) -> None:
         if not self._is_connected():
-            self.connect()
+            self._connect()
 
         if self._is_connected():  
             try:
@@ -75,11 +74,11 @@ class KafkaProducer(KafkaClient):
                 logger.error(f"Error while sending kafka message: {e}", e)
     
     def send(self, message: str) -> None:
-        self.send(self.topic, self.message)
+        self.send_with_topic(self.topic, message)
 
 class BlobKafkaClient(KafkaClient):
     def send(self, message: str) -> None:
         pass
 
-    def send(self, topic: str, message: str) -> None:
+    def send_with_topic(self, topic: str, message: str) -> None:
         pass
