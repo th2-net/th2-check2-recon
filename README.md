@@ -13,6 +13,7 @@ This package can be found on [PyPI](https://pypi.org/project/th2-check2-recon/ "
 
 ### Kafka Configuration
 - *topic* - default topic for published events.
+- *key* - add default key as configuration option.
 - *fail_on_connection_failure* - defines if service should fall when kafka connection cannot be established.
 - *bootstrap.servers* - comma separated list of host:port of kafka broker instances. Default: ['localhost:9092']
 

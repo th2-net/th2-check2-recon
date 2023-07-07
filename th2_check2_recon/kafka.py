@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class KafkaConfiguration:
     def __init__(self, config: dict):
         self.topic = config.pop("topic", "default")
+        self.key = config.pop("key", 'default_key')
         self.fail_on_connection_failure = config.pop("fail_on_connection_failure", False)
         self.bootstrap_servers = config.get("bootstrap.servers", "localhost:9092")
         self.producer_config = config
@@ -40,6 +41,7 @@ class KafkaClient:
 class KafkaProducer(KafkaClient):
     def __init__(self, config: KafkaConfiguration):
         self.topic = config.topic
+        self.key = config.key
         self.connection_string = config.bootstrap_servers
         self.fail_on_connection_failure = config.fail_on_connection_failure
         self.producer_config = config.producer_config
@@ -73,7 +75,7 @@ class KafkaProducer(KafkaClient):
         if self._is_connected():  
             try:
                 self.producer.poll(0)
-                self.producer.produce(topic, value=message.encode('utf-8'), callback=self._on_delivery)
+                self.producer.produce(topic, key=self.key, value=message.encode('utf-8'), callback=self._on_delivery)
             except Exception as e:
                 logger.error(f"Error while sending kafka message: {e}", e)
     
