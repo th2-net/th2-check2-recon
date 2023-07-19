@@ -43,6 +43,7 @@ class KafkaProducer(KafkaClient):
     def __init__(self, config: KafkaConfiguration):
         self.topic = config.topic
         self.key = config.key
+        self.use_keys = config.use_keys
         self.connection_string = config.bootstrap_servers
         self.fail_on_connection_failure = config.fail_on_connection_failure
         self.producer_config = config.producer_config
