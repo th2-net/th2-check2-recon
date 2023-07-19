@@ -83,7 +83,7 @@ class KafkaProducer(KafkaClient):
             try:
                 self.producer.poll(0)
                 if self.use_keys:
-                    self.producer.produce(topic, key=self.key, value=message.encode('utf-8'), callback=self._on_delivery)
+                    self.producer.produce(topic, key=key, value=message.encode('utf-8'), callback=self._on_delivery)
                 else:
                     self.producer.produce(topic, value=message.encode('utf-8'), callback=self._on_delivery)
             except Exception as e:
