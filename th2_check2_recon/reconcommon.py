@@ -16,14 +16,16 @@ from enum import Enum
 from typing import Any, Dict
 
 from th2_check2_recon.common import MessageUtils
+from google.protobuf.timestamp_pb2 import Timestamp
 
 
 class ReconMessage:
-    __slots__ = ("proto_message", "group_info", "group_id", "hash_info", "hash", "is_matched",
+    __slots__ = ("proto_message", "proto_timestamp", "group_info", "group_id", "hash_info", "hash", "is_matched",
                  "is_check_no_match_within_timeout", "_timestamp", "in_shared_groups", '_info')
 
-    def __init__(self, proto_message: Dict[str, Any]) -> None:
+    def __init__(self, proto_message: Dict[str, Any], proto_timestamp: Timestamp) -> None:
         self.proto_message = proto_message  # The result of message_to_dict, NOT the Orig proto obj.
+        self.proto_timestamp = proto_timestamp
         self.group_info = dict()
         self.group_id = None
         self.hash_info = dict()

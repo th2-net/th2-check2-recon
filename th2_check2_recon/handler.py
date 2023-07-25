@@ -47,7 +47,7 @@ class MessageHandler(AbstractHandler):
         try:
             for proto_message in batch.messages:
                 data = message_to_dict(proto_message)
-                message = ReconMessage(proto_message=data)
+                message = ReconMessage(proto_message=data, proto_timestamp=proto_message.metadata.timestamp)
 
                 process_timer = self._rule.RULE_PROCESSING_TIME
                 start_time = time.time()
@@ -97,7 +97,7 @@ class GRPCHandler(DataProcessorServicer):
             for proto_message in messages:
                 data = message_to_dict(proto_message)
                 for rule in self._rules:
-                    message = ReconMessage(proto_message=data)
+                    message = ReconMessage(proto_message=data, proto_timestamp=proto_message.metadata.timestamp)
                     process_timer = rule.RULE_PROCESSING_TIME
                     start_time = time.time()
                     try:
