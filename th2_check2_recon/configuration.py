@@ -14,7 +14,7 @@
 
 import datetime
 from typing import Optional, Dict
-from kafka import KafkaConfiguration
+from th2_check2_recon.kafka import KafkaConfiguration
 
 
 class RuleConfiguration:
