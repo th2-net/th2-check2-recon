@@ -16,7 +16,6 @@ import copy
 import datetime
 import functools
 import logging
-import re
 import traceback
 from abc import abstractmethod
 from typing import List, Optional
@@ -37,8 +36,14 @@ logger = logging.getLogger(__name__)
 
 class Rule:
 
-    def __init__(self, recon: Recon, cache_size: int, match_timeout: int, autoremove_timeout: Optional[int],
-                 configuration) -> None:
+    def __init__(self,
+                 recon: Recon,
+                 cache_size: int,
+                 match_timeout: int,
+                 autoremove_timeout: Optional[int],
+                 configuration,
+                 metric_number: int) -> None:
+
         self.recon = recon
         self.configure(configuration)
         self.name = self.get_name()
@@ -62,7 +67,7 @@ class Rule:
         self.__cache = Cache(self, cache_size)
 
         self.RULE_PROCESSING_TIME = Histogram(
-            f"th2_recon_{re.sub('[^a-zA-Z0-9_: ]', '', self.name).lower().replace(' ', '_')}_rule_processing_time",
+            f'th2_recon_rule_{metric_number}_processing_time',
             'Time of the message processing with a rule',
             buckets=common_metrics.DEFAULT_BUCKETS)
 
@@ -253,7 +258,7 @@ class Rule:
             f"'{group.id}': {group.size} msg" for group in self.__cache.message_groups.values()) + "]"
 
     def cache_size(self):
-        return sum(group.size for group in self.__cache.message_groups)
+        return sum(group.size for group in self.__cache.message_groups.values())
 
     def check_no_match_within_timeout(self, actual_time: int):
         for group in self.__cache.message_groups.values():
