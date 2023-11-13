@@ -63,7 +63,6 @@ class Rule:
                                     type=EventUtils.EventType.RULE)
         logger.debug("Created report Event for Rule '%s': %s", self.name,
                      text_format.MessageToString(self.rule_event, as_one_line=True))
-        self.event_store.send_parent_event(self.rule_event)
 
         self.__cache = Cache(self, cache_size)
 
@@ -213,7 +212,7 @@ class Rule:
             self.group(message, attributes, *args, **kwargs)
         except Exception:
             logger.exception(f"RULE '{self.name}': An exception was caught while running 'group'")
-            self.event_store.store_error(rule_event_id=self.rule_event.id,
+            self.event_store.store_error(rule_event=self.rule_event,
                                          event_name="An exception was caught while running 'group'",
                                          error_message=traceback.format_exc(),
                                          messages=[message])
@@ -223,7 +222,7 @@ class Rule:
             self.hash(message, attributes, *args, **kwargs)
         except Exception:
             logger.exception(f"RULE '{self.name}': An exception was caught while running 'hash'")
-            self.event_store.store_error(rule_event_id=self.rule_event.id,
+            self.event_store.store_error(rule_event=self.rule_event,
                                          event_name="An exception was caught while running 'hash'",
                                          error_message=traceback.format_exc(),
                                          messages=[message])
@@ -235,7 +234,7 @@ class Rule:
             check_event: Event = self.check(matched_messages, attributes, *args, **kwargs)
         except Exception:
             logger.exception(f"RULE '{self.name}': An exception was caught while running 'check'")
-            self.event_store.store_error(rule_event_id=self.rule_event.id,
+            self.event_store.store_error(rule_event=self.rule_event,
                                          event_name="An exception was caught while running 'check'",
                                          error_message=traceback.format_exc(),
                                          messages=matched_messages)
@@ -248,10 +247,10 @@ class Rule:
         min_timestamp_msg = min(matched_messages, key=_get_msg_timestamp)
 
         if max_timestamp_msg.timestamp - min_timestamp_msg.timestamp > self.match_timeout:
-            self.event_store.store_matched_out_of_timeout(rule_event_id=self.rule_event.id,
+            self.event_store.store_matched_out_of_timeout(rule_event=self.rule_event,
                                                           check_event=check_event)
         else:
-            self.event_store.store_matched(rule_event_id=self.rule_event.id,
+            self.event_store.store_matched(rule_event=self.rule_event,
                                            check_event=check_event)
 
     def log_groups_size(self):

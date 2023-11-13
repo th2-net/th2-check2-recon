@@ -118,20 +118,22 @@ class EventStore(AbstractService):
                      text_format.MessageToString(self.root_event, as_one_line=True))
         self.send_parent_event(self.root_event)
 
-    def send_event(self, event: Event, rule_event_id: EventID, group_event_name: str):
+    def send_event(self, event: Event, rule_event: Event, group_event_name: str):
         try:
-            if rule_event_id.id not in self.__group_event_by_rule_id:
-                self.__group_event_by_rule_id[rule_event_id.id] = dict()
-            if group_event_name not in self.__group_event_by_rule_id[rule_event_id.id]:
-                group_event = EventUtils.create_event(parent_id=rule_event_id,
+            if rule_event.id.id not in self.__group_event_by_rule_id:
+                self.send_parent_event(rule_event)
+                logger.debug("Created report Event for Rule '%s': %s", rule_event.name,
+                     text_format.MessageToString(rule_event, as_one_line=True))
+                self.__group_event_by_rule_id[rule_event.id.id] = dict()
+            if group_event_name not in self.__group_event_by_rule_id[rule_event.id]:
+                group_event = EventUtils.create_event(parent_id=rule_event.id,
                                                       name=group_event_name,
                                                       type=EventUtils.EventType.STATUS)
-                logger.debug(f"Create group Event '%s' for rule Event '%s'", group_event_name,
-                             rule_event_id)
-                self.__group_event_by_rule_id[rule_event_id.id][group_event_name] = group_event
+                logger.debug(f"Create group Event '%s' for rule Event '%s'", group_event_name, rule_event.id)
+                self.__group_event_by_rule_id[rule_event.id.id][group_event_name] = group_event
                 self.send_parent_event(group_event)
 
-            group_event = self.__group_event_by_rule_id[rule_event_id.id][group_event_name]
+            group_event = self.__group_event_by_rule_id[rule_event.id.id][group_event_name]
             event.id.CopyFrom(EventUtils.new_event_id())
             event.parent_id.CopyFrom(group_event.id)
             self.__events_batch_collector.put_event(event)
@@ -143,7 +145,7 @@ class EventStore(AbstractService):
         event_batch.events.append(event)
         self.event_router.send(event_batch)
 
-    def store_no_match_within_timeout(self, rule_event_id: EventID, recon_message: ReconMessage,
+    def store_no_match_within_timeout(self, rule_event: Event, recon_message: ReconMessage,
                                       actual_timestamp: int, timeout: int):
         name = f'{recon_message.all_info}'
 
@@ -167,12 +169,10 @@ class EventStore(AbstractService):
                                         body=body,
                                         attached_message_ids=attached_message_ids,
                                         type=EventUtils.EventType.EVENT)
-        logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH_WITHIN_TIMEOUT,
-                     rule_event_id)
-        self.send_event(event, rule_event_id, self.NO_MATCH_WITHIN_TIMEOUT)
+        logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH_WITHIN_TIMEOUT, rule_event)
+        self.send_event(event, rule_event, self.NO_MATCH_WITHIN_TIMEOUT)
 
-    def store_message_removed(self, rule_event_id: EventID, message: ReconMessage,
-                              event_message: str):
+    def store_message_removed(self, rule_event: Event, message: ReconMessage, event_message: str):
         name = f"Remove {message.all_info}"
         event_message += f"\n Message {'not' if not message.is_matched else ''} matched"
         body = EventUtils.create_event_body(MessageComponent(event_message))
@@ -182,10 +182,10 @@ class EventStore(AbstractService):
                                         status=EventStatus.SUCCESS if message.is_matched else EventStatus.FAILED,
                                         attached_message_ids=attached_message_ids,
                                         type=EventUtils.EventType.EVENT)
-        logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH, rule_event_id)
-        self.send_event(event, rule_event_id, self.NO_MATCH)
+        logger.debug("Create '%s' Event for rule Event '%s'", self.NO_MATCH, rule_event)
+        self.send_event(event, rule_event, self.NO_MATCH)
 
-    def store_error(self, rule_event_id: EventID, event_name: str, error_message: str,
+    def store_error(self, rule_event: Event, event_name: str, error_message: str,
                     messages: List[ReconMessage] = None):
         body = EventUtils.create_event_body(MessageComponent(error_message))
         attached_message_ids = self._get_attached_message_ids(*messages)
@@ -199,17 +199,17 @@ class EventStore(AbstractService):
                                         attached_message_ids=attached_message_ids,
                                         body=body,
                                         type=EventUtils.EventType.ERROR)
-        logger.debug("Create '%s' Event for rule Event '%s'", self.ERRORS, rule_event_id)
-        self.send_event(event, rule_event_id, self.ERRORS)
+        logger.debug("Create '%s' Event for rule Event '%s'", self.ERRORS, rule_event)
+        self.send_event(event, rule_event, self.ERRORS)
 
-    def store_matched_out_of_timeout(self, rule_event_id: EventID, check_event: Event):
-        self.send_event(check_event, rule_event_id, self.MATCHED_OUT_OF_TIMEOUT)
+    def store_matched_out_of_timeout(self, rule_event: Event, check_event: Event):
+        self.send_event(check_event, rule_event, self.MATCHED_OUT_OF_TIMEOUT)
 
-    def store_matched(self, rule_event_id: EventID, check_event: Event):
+    def store_matched(self, rule_event: Event, check_event: Event):
         if check_event.status == EventStatus.SUCCESS:
-            self.send_event(check_event, rule_event_id, self.MATCHED_PASSED)
+            self.send_event(check_event, rule_event, self.MATCHED_PASSED)
         else:
-            self.send_event(check_event, rule_event_id, self.MATCHED_FAILED)
+            self.send_event(check_event, rule_event, self.MATCHED_FAILED)
 
     def stop(self):
         self.__events_batch_collector.stop()
