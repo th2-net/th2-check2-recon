@@ -53,16 +53,18 @@ class EventsBatchCollector(AbstractService):
 
     def put_event(self, event: Event):
         with self.__lock:
-            if event.parent_id.id in self.__batches:
-                event_batch, batch_timer = self.__batches[event.parent_id.id]
+            parent_id: str = event.parent_id.id
+
+            if parent_id in self.__batches:
+                event_batch, batch_timer = self.__batches[parent_id]
             else:
                 event_batch = EventBatch(parent_event_id=event.parent_id)
                 batch_timer = self._create_timer(event_batch)
-                self.__batches[event.parent_id.id] = (event_batch, batch_timer)
+                self.__batches[parent_id] = (event_batch, batch_timer)
 
             event_batch.events.append(event)
             if len(event_batch.events) == self.max_batch_size:
-                del self.__batches[event.parent_id.id]
+                del self.__batches[parent_id]
                 batch_timer.cancel()
                 self._send_batch(event_batch)
 
@@ -120,20 +122,22 @@ class EventStore(AbstractService):
 
     def send_event(self, event: Event, rule_event: Event, group_event_name: str):
         try:
-            if rule_event.id.id not in self.__group_event_by_rule_id:
+            rule_event_id: str = rule_event.id.id
+
+            if rule_event_id not in self.__group_event_by_rule_id:
                 self.send_parent_event(rule_event)
                 logger.debug("Created report Event for Rule '%s': %s", rule_event.name,
                      text_format.MessageToString(rule_event, as_one_line=True))
-                self.__group_event_by_rule_id[rule_event.id.id] = dict()
+                self.__group_event_by_rule_id[rule_event_id] = dict()
             if group_event_name not in self.__group_event_by_rule_id[rule_event.id]:
                 group_event = EventUtils.create_event(parent_id=rule_event.id,
                                                       name=group_event_name,
                                                       type=EventUtils.EventType.STATUS)
                 logger.debug(f"Create group Event '%s' for rule Event '%s'", group_event_name, rule_event.id)
-                self.__group_event_by_rule_id[rule_event.id.id][group_event_name] = group_event
+                self.__group_event_by_rule_id[rule_event_id][group_event_name] = group_event
                 self.send_parent_event(group_event)
 
-            group_event = self.__group_event_by_rule_id[rule_event.id.id][group_event_name]
+            group_event = self.__group_event_by_rule_id[rule_event_id][group_event_name]
             event.id.CopyFrom(EventUtils.new_event_id())
             event.parent_id.CopyFrom(group_event.id)
             self.__events_batch_collector.put_event(event)
@@ -394,7 +398,7 @@ class Cache(AbstractService):
                 self.size -= 1
 
             if cause is not None:
-                self.event_store.store_message_removed(rule_event_id=self.parent_event.id,
+                self.event_store.store_message_removed(rule_event=self.parent_event.id,
                                                        message=message_for_remove,
                                                        event_message=cause)
 
