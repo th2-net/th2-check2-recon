@@ -367,7 +367,7 @@ class Cache(AbstractService):
                     for recon_message in self.data[old_hash]:
                         if not recon_message.is_matched and not recon_message.is_check_no_match_within_timeout:
                             recon_message.is_check_no_match_within_timeout = True
-                            self.event_store.store_no_match_within_timeout(self.parent_event.id,
+                            self.event_store.store_no_match_within_timeout(self.parent_event,
                                                                            recon_message,
                                                                            actual_timestamp,
                                                                            timeout)
@@ -398,7 +398,7 @@ class Cache(AbstractService):
                 self.size -= 1
 
             if cause is not None:
-                self.event_store.store_message_removed(rule_event=self.parent_event.id,
+                self.event_store.store_message_removed(rule_event=self.parent_event,
                                                        message=message_for_remove,
                                                        event_message=cause)
 
