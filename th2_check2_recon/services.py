@@ -129,7 +129,7 @@ class EventStore(AbstractService):
                 logger.debug("Created report Event for Rule '%s': %s", rule_event.name,
                      text_format.MessageToString(rule_event, as_one_line=True))
                 self.__group_event_by_rule_id[rule_event_id] = dict()
-            if group_event_name not in self.__group_event_by_rule_id[rule_event.id]:
+            if group_event_name not in self.__group_event_by_rule_id[rule_event_id]:
                 group_event = EventUtils.create_event(parent_id=rule_event.id,
                                                       name=group_event_name,
                                                       type=EventUtils.EventType.STATUS)
